@@ -1,6 +1,7 @@
 
 
 
+
 <!doctype html>
 <html lang="ja">
 <head>
@@ -1374,7 +1375,7 @@ const LS = {
   set(k, v) { try { localStorage.setItem("nkys_" + k, JSON.stringify(v)); } catch (_) {} },
 };
 const S = {
-  settings: Object.assign({ proxy: true, adaptive: false, autoplay: true, quality: "auto", theme: "dark", playerMode: "stream", saveSearches: true, saveHistory: true, region: "JP" }, LS.get("settings", {})),
+  settings: Object.assign({ proxy: true, adaptive: false, autoplay: true, quality: "auto", theme: "dark", playerMode: "nocookie", saveSearches: true, saveHistory: true, region: "JP" }, LS.get("settings", {})),
   subs: LS.get("subs", []),
   history: LS.get("history", []),
   searches: LS.get("searches", []),
