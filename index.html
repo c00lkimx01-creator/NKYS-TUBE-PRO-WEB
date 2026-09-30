@@ -1,7 +1,4 @@
 
-
-
-
 <!doctype html>
 <html lang="ja">
 <head>
@@ -141,6 +138,8 @@ main.wide{margin-left:0}
 .rel-item .thumb{width:168px;flex:none;border-radius:8px}
 .rel-item .mtitle{font-size:14px}
 .rel-item .msub{font-size:12px}
+.rel-item .related-channel{display:block;margin-top:3px;color:var(--fg-dim);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rel-item .related-channel:hover{color:var(--fg);text-decoration:underline}
 
 /* ---------- Watch ---------- */
 .watch{display:grid;grid-template-columns:minmax(0,1fr) 402px;gap:24px;padding-top:24px;max-width:1754px;margin:0 auto}
@@ -166,6 +165,8 @@ video{width:100%;height:100%;display:block;background:#000}
   word-break:break-word;cursor:pointer;max-height:80px;overflow:hidden}
 #desc.open{max-height:none}
 #desc b{display:block;margin-bottom:8px}
+#desc .desc-link,#desc .desc-tag{color:var(--blue);text-decoration:none;cursor:pointer}
+#desc .desc-link:hover,#desc .desc-tag:hover{text-decoration:underline}
 .sechead{display:flex;align-items:center;gap:24px;margin:24px 0 16px;font-size:20px;font-weight:700}
 .comment{display:flex;gap:16px;margin-bottom:16px}
 .comment img{width:40px;height:40px;border-radius:50%;flex:none;object-fit:cover;background:var(--bg-hover)}
@@ -808,6 +809,12 @@ body.theater .watch{padding-bottom:80px}
 .chAboutStats{display:grid;gap:12px;font-size:14px;color:var(--fg-dim)}
 .chAboutStats div{display:flex;align-items:center;gap:10px}
 .chAboutStats svg{fill:var(--fg-dim);flex:none}
+.chAllSection{padding:20px 0 8px}
+.chAllSection+.chAllSection{border-top:1px solid var(--line)}
+.chAllHead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.chAllHead h2{font-size:20px;margin:0}
+.chAllMore{border:0;background:transparent;color:var(--fg);font-size:14px;font-weight:600;cursor:pointer;padding:8px}
+.chAllMore:hover{background:var(--bg-hover);border-radius:8px}
 @media(max-width:900px){
   .chPage .chHead{gap:16px;align-items:flex-start;padding:16px 0 8px}
   .chPage .chAvatar{width:88px;height:88px}
@@ -1415,6 +1422,26 @@ document.documentElement.dataset.theme = S.settings.theme;
 const $ = (s, r) => (r || document).querySelector(s);
 const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+/* 概要欄のURLとハッシュタグを、安全なリンクとして表示する */
+function descriptionHtml(text) {
+  const source = String(text == null ? "" : text);
+  const token = /(https?:\/\/[^\s<>"']+|#[\p{L}\p{N}_ー々〆ヵヶ]+)/gu;
+  let html = "", last = 0, match;
+  while ((match = token.exec(source))) {
+    html += esc(source.slice(last, match.index));
+    let value = match[0];
+    if (value.charAt(0) === "#") {
+      const tag = value.slice(1);
+      html += '<a class="desc-tag" href="/results?search_query=' + encodeURIComponent(value) + '" data-desc-tag="' + esc(value) + '">' + esc(value) + '</a>';
+    } else {
+      const trailing = (value.match(/[）)】\]。、，．！？!?,.;:]+$/) || [""])[0];
+      if (trailing) value = value.slice(0, -trailing.length);
+      html += '<a class="desc-link" href="' + esc(value) + '" target="_blank" rel="noopener noreferrer">' + esc(value) + '</a>' + esc(trailing);
+    }
+    last = match.index + match[0].length;
+  }
+  return html + esc(source.slice(last));
+}
 function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("on"); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("on"), 2200); }
 function fmtDur(s) {
   s = Math.max(0, Math.round(s || 0));
@@ -2458,6 +2485,8 @@ function go(path, replace) {
 addEventListener("popstate", render);
 if (APP_FILE_MODE) addEventListener("hashchange", render);
 document.addEventListener("click", (e) => {
+  const tag = e.target.closest("[data-desc-tag]");
+  if (tag) { e.preventDefault(); e.stopPropagation(); go("/results?search_query=" + encodeURIComponent(tag.dataset.descTag)); return; }
   const ex = e.target.closest("[data-explore]");
   if (ex) { e.preventDefault(); go("/results?search_query=" + encodeURIComponent(ex.dataset.explore)); return; }
   const n = e.target.closest("[data-nav]");
@@ -2559,9 +2588,13 @@ function videoCard(v, mode, idx) {
   const avSrc = authorImg(v) || AVATARS.get(v.authorId || "") || "https://i.ytimg.com/vi/" + id + "/default.jpg";
   const av = mode === "list" ? '<img class="channel-icon author-av" referrerpolicy="no-referrer" ' + ld + ' decoding="async" width="28" height="28" src="' + esc(avSrc) + '" alt="">'
     : mode ? "" : '<img class="author-av" referrerpolicy="no-referrer" ' + ld + ' decoding="async" width="36" height="36" src="' + esc(avSrc) + '" alt="">';
+  const channelName = v.author || v.channelName || (v.channel && (v.channel.name || v.channel.title)) || "";
+  const channelId = v.authorId || v.channelId || (v.channel && (v.channel.id || v.channel.channelId)) || "";
   const channel = mode === "list"
-    ? '<div class="channel-line">' + av + '<span>' + esc(v.author || "") + '</span></div>'
-    : '<div class="msub">' + esc(v.author || "") + "</div>";
+    ? '<div class="channel-line">' + av + '<span>' + esc(channelName) + '</span></div>'
+    : mode === "rel"
+      ? '<div class="msub related-channel" data-channel-id="' + esc(channelId) + '">' + esc(channelName) + "</div>"
+      : '<div class="msub">' + esc(channelName) + "</div>";
   const description = v.description || v.descriptionSnippet || v.shortDescription || "";
   const desc = (mode === "list" && description) ? '<div class="mdesc">' + esc(description) + "</div>" : "";
   card.innerHTML =
@@ -2578,6 +2611,8 @@ function videoCard(v, mode, idx) {
   moreBtn.onclick = (e) => { e.stopPropagation(); openCardMenu(moreBtn, v); };
   applyAuthorIcon(card.querySelector("img.author-av"), v);
   rememberVideo(v);
+  const relatedChannel = card.querySelector(".related-channel");
+  if (relatedChannel && channelId) relatedChannel.onclick = (e) => { e.stopPropagation(); go("/channel?c=" + encodeURIComponent(channelId)); };
   card.onclick = () => go("/watch?v=" + id);
   card.addEventListener("pointerenter", () => prefetchVideo(id), { once: true });
   card.addEventListener("touchstart", () => prefetchVideo(id), { once: true, passive: true });
@@ -3128,7 +3163,7 @@ async function pageSearch(q, page) {
   let cur = page, busy = false, done = false;
   /* ページをまたいだ同一動画の再表示を防ぐ */
   const displayedIds = new Set(videos.map((v) => vidOf(v)).filter(Boolean));
-  async function loadNext(navigate) {
+  async function loadNext() {
     if (busy || done) return;
     busy = true;
     const g = ghostList(4); listBox.appendChild(g);
@@ -3159,13 +3194,12 @@ async function pageSearch(q, page) {
       }
       fresh.forEach((v) => listBox.appendChild(videoCard(v, "list")));
       btnNext.textContent = "次のページ (" + (cur + 1) + ") を表示";
-      if (navigate) history.replaceState({}, "", "/results?search_query=" + encodeURIComponent(q) + "&page=" + cur);
     } catch (e) { g.remove(); if (!isAbort(e)) toast("次のページを取得できませんでした"); }
     finally { busy = false; }
   }
   searchMore = loadNext;
-  btnNext.onclick = () => go("/results?search_query=" + encodeURIComponent(q) + "&page=" + (cur + 1));
-  const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadNext(true); }, { rootMargin: "600px" });
+  btnNext.onclick = () => loadNext();
+  const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadNext(); }, { rootMargin: "600px" });
   io.observe(sentinel);
   signal.addEventListener("abort", () => io.disconnect(), { once: true });
 
@@ -3231,7 +3265,7 @@ async function pageWatch(id, startAt) {
     $(".owner").innerHTML = '<img class="author-av" src="' + esc(authorImg(known) || "") + '" alt=""><div><div class="oname">' + esc(known.author) + '</div></div>';
   }
   if (known && known.description) {
-    $("#desc").outerHTML = '<div id="desc"><div class="desc-body">' + esc(known.description) + '</div></div>';
+    $("#desc").outerHTML = '<div id="desc"><div class="desc-body">' + descriptionHtml(known.description) + '</div></div>';
   }
   loadComments(id, commentsPromise);
   siaPromise.then((meta) => {
@@ -3239,7 +3273,7 @@ async function pageWatch(id, startAt) {
     rememberVideo(meta);
     if (meta.title) { $("#vtitle").classList.remove("skel"); $("#vtitle").textContent = meta.title; }
     if (meta.author) $(".owner").innerHTML = '<img class="author-av" src="' + esc(authorImg(meta) || "") + '" alt=""><div><div class="oname">' + esc(meta.author) + '</div></div>';
-    if (meta.description) $("#desc").outerHTML = '<div id="desc"><div class="desc-body">' + esc(meta.description) + '</div></div>';
+    if (meta.description) $("#desc").outerHTML = '<div id="desc"><div class="desc-body">' + descriptionHtml(meta.description) + '</div></div>';
     if (meta.recommendedVideos && meta.recommendedVideos.length) loadSide(meta);
   });
 
@@ -3309,7 +3343,7 @@ async function pageWatch(id, startAt) {
       </div>
     </div>`;
   applyAuthorIcon($(".owner img.author-av"), v);
-  $("#desc").outerHTML = `<div id="desc"><b>${fmtNum(v.viewCount)}回視聴・${esc(v.publishedText || ago(v.published))}</b><div class="desc-body">${esc(v.description || "")}</div><button type="button" class="desc-more" aria-expanded="false">もっと見る</button></div>`;
+  $("#desc").outerHTML = `<div id="desc"><b>${fmtNum(v.viewCount)}回視聴・${esc(v.publishedText || ago(v.published))}</b><div class="desc-body">${descriptionHtml(v.description || "")}</div><button type="button" class="desc-more" aria-expanded="false">もっと見る</button></div>`;
   $("#commentHead").innerHTML = `<span>${fmtNum(v.commentCount || 0)} 件のコメント</span>`;
 
   window.__nkysStreams = streams;
@@ -3960,7 +3994,8 @@ async function pageChannel(cid) {
       '</div>' +
     '</div>' +
     '<div class="chTabs">' +
-      '<div class="chTab on" data-tab="videos">動画</div>' +
+      '<div class="chTab on" data-tab="all">すべて</div>' +
+      '<div class="chTab" data-tab="videos">動画</div>' +
       '<div class="chTab" data-tab="shorts">Shorts</div>' +
       '<div class="chTab" data-tab="live">ライブ</div>' +
       '<div class="chTab" data-tab="playlists">再生リスト</div>' +
@@ -4076,6 +4111,15 @@ async function pageChannel(cid) {
 
   const shortsBySort = new Map();
   let liveCache = null;
+  const allSection = (title, tab, content) => {
+    const section = el("section", "chAllSection");
+    const heading = el("div", "chAllHead");
+    heading.innerHTML = '<h2>' + esc(title) + '</h2><button type="button" class="chAllMore">すべて表示</button>';
+    heading.querySelector(".chAllMore").onclick = () => showTab(tab);
+    section.appendChild(heading);
+    section.appendChild(content);
+    return section;
+  };
   const showTab = async (tab) => {
     document.querySelectorAll(".chTab").forEach((t) => t.classList.toggle("on", t.dataset.tab === tab));
     const srow = $("#chSearchInline");
@@ -4101,7 +4145,29 @@ async function pageChannel(cid) {
       if (hits.length) body.appendChild(renderGrid(sortVideos(hits)));
       return;
     }
-    if (tab === "videos") {
+    if (tab === "all") {
+      const feat = channelFeatured(allVideos, ch);
+      if (feat) body.appendChild(feat);
+      if (allVideos.length) body.appendChild(allSection("動画", "videos", renderGrid(sortVideos(allVideos).slice(0, 8))));
+
+      let allShorts = shortsBySort.get(sortMode);
+      if (!allShorts) {
+        const ghost = channelTabGhost("shorts");
+        body.appendChild(ghost);
+        allShorts = await fetchChannelShorts(cid, allVideos, nav.abort && nav.abort.signal, sortMode).catch(() => []);
+        shortsBySort.set(sortMode, allShorts);
+        ghost.remove();
+      }
+      if (allShorts.length) {
+        const holder = el("div", "shortsGrid");
+        allShorts.slice(0, 8).forEach((v) => holder.appendChild(shortCard(v)));
+        body.appendChild(allSection("ショート", "shorts", holder));
+      }
+
+      if (!liveCache) liveCache = await fetchChannelLive(cid, nav.abort && nav.abort.signal).catch(() => []);
+      if (liveCache.length) body.appendChild(allSection("ライブ", "live", renderGrid(sortVideos(liveCache).slice(0, 4))));
+      if (!allVideos.length && !allShorts.length && !liveCache.length) body.appendChild(el("div", "empty", "コンテンツはありません"));
+    } else if (tab === "videos") {
       let sortedVideos = channelVideosBySort.get(sortMode);
       if (!sortedVideos) {
         const ghost = channelTabGhost("videos");
@@ -4212,7 +4278,7 @@ async function pageChannel(cid) {
   }
   const sClear = $("#chSearchClear");
   if (sClear) sClear.onclick = () => { chQuery = ""; if (sInput) { sInput.value = ""; sInput.focus(); } showTab("search"); };
-  showTab("videos");
+  showTab("all");
 }
 
 /* ---- shorts (YouTube 準拠 UI / Nocookie 再生) ---- */
