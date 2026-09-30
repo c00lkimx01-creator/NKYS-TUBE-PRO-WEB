@@ -3,6 +3,7 @@
 
 
 
+
 <!doctype html>
 <html lang="ja">
 <head>
@@ -214,7 +215,7 @@ dialog h3{margin:0 0 12px}
 
 <style>
 /* ============================================================
-   NKYS Tube Pro — YouTube 準拠テーマ + 全ボタン角丸なし(四角) + アニメーション
+   NKYS Tube Pro — YouTube 準拠テーマ + アニメーション
    ============================================================ */
 :root{
   --bg:#0f0f0f; --bg-elev:#212121; --bg-hover:#272727; --chip:#272727; --chip-on:#f1f1f1;
@@ -230,16 +231,19 @@ dialog h3{margin:0 0 12px}
 }
 
 /* ---- メニュー・モーダルなどのオーバーレイはやや丸みを持たせた四角 ---- */
-:root{ --radius-sm:8px; --radius-pill:10px; }
-button, .row input[type=text], .row textarea, .row select, dialog, #toast, #desc{
+:root{ --radius-sm:12px; --radius-pill:999px; }
+.row input[type=text], .row textarea, .row select, dialog, #toast, #desc{
   border-radius:var(--radius-sm) !important;
 }
 .thumb, .rel-item .thumb, .short video, .skel{ border-radius:var(--radius) !important; }
 .dur, .badge{ border-radius:6px !important; }
 .chip{ border-radius:var(--radius-pill) !important; }
 .pill, .pillgroup{ border-radius:var(--radius-pill) !important; }
-.snav, .subrow{ border-radius:var(--radius-pill) !important; }
-.icobtn{width:40px;height:40px;border-radius:var(--radius-pill) !important}
+.pillgroup .pill{border-radius:0 !important}
+.pillgroup .pill:first-child{border-radius:999px 0 0 999px !important}
+.pillgroup .pill:last-child{border-radius:0 999px 999px 0 !important}
+.snav, .subrow{ border-radius:12px !important; }
+.icobtn{width:40px;height:40px;border-radius:50% !important}
 #btnMenu{border-radius:50% !important}
 /* 検索送信ボタン: ピル右端に一体化したD型。角丸は0(!important)で
    button{border-radius}の上書きを打ち消し、右側は親ピルのoverflow:hiddenで曲線に切り抜く */
@@ -960,10 +964,10 @@ dialog,
 .sh-menu,
 .sh-panel,
 #toast {
-  border-radius: 4px !important;
+  border-radius: 12px !important;
 }
 @media (max-width:1180px) {
-  .sh-panel { border-radius: 4px 4px 0 0 !important; }
+  .sh-panel { border-radius: 12px 12px 0 0 !important; }
 }
 </style>
 
@@ -1198,6 +1202,113 @@ dialog,
 .sug-arrow{flex:none;opacity:.55}
 .sug-arrow svg{width:16px;height:16px}
 </style>
+<style id="cpStyle">
+/* ==== コントロールパネル（watch 画面 右下） ==== */
+#cpFab{display:none;position:fixed;right:20px;bottom:20px;width:56px;height:56px;border:0;border-radius:50%;
+  background:var(--bg-hover);color:var(--fg);cursor:pointer;place-items:center;z-index:150;
+  box-shadow:0 4px 16px rgba(0,0,0,.45);transition:background .15s,transform .15s}
+#cpFab:hover{background:var(--chip)}
+#cpFab:active{transform:scale(.94)}
+#cpFab svg{width:24px;height:24px;fill:currentColor}
+body.is-watch #cpFab{display:grid}
+body.has-mini #cpFab,body.has-mini #cpPanel{display:none}
+#cpPanel{position:fixed;right:16px;bottom:88px;width:min(452px,calc(100vw - 32px));max-height:min(680px,calc(100dvh - 110px));
+  overflow-y:auto;background:var(--bg-elev);border:1px solid var(--line);border-radius:20px;padding:18px 16px 8px;z-index:190;
+  box-shadow:0 16px 48px rgba(0,0,0,.55)}
+.cp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.cp-head h2{margin:0;font-size:19px;font-weight:700}
+.cp-close{width:36px;height:36px;border:0;border-radius:50%;background:transparent;color:var(--fg);cursor:pointer;display:grid;place-items:center}
+.cp-close:hover{background:var(--bg-hover)}
+.cp-close svg{width:20px;height:20px;fill:currentColor}
+.cp-tabs{display:flex;gap:8px;margin-bottom:16px}
+.cp-tab{padding:8px 20px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--fg);font-size:14px;cursor:pointer}
+.cp-tab.on{background:var(--chip-on);border-color:var(--chip-on);color:#0f0f0f;font-weight:600}
+.cp-body[hidden]{display:none}
+.cp-card{background:var(--bg-hover);border-radius:16px;padding:14px;margin-bottom:14px}
+.cp-cardlabel{font-size:12px;color:var(--fg-dim);margin-bottom:8px}
+.cp-row{display:flex;align-items:center;justify-content:space-between;padding:10px 2px;font-size:15px}
+.cp-row + .cp-row{border-top:1px solid var(--line)}
+.cp-switch{position:relative;width:46px;height:26px;flex:none;cursor:pointer}
+.cp-switch input{position:absolute;inset:0;opacity:0;cursor:pointer;margin:0}
+.cp-switch i{position:absolute;inset:0;border-radius:999px;background:var(--chip);border:1px solid var(--line);transition:.18s;pointer-events:none}
+.cp-switch i::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.18s}
+.cp-switch input:checked + i{background:var(--brand);border-color:var(--brand)}
+.cp-switch input:checked + i::after{transform:translateX(20px)}
+.cp-selectrow{position:relative;display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;border:0;border-radius:12px;background:var(--chip);color:var(--fg);font-size:15px;cursor:pointer;text-align:left}
+.cp-selectrow svg{width:18px;height:18px;fill:currentColor;flex:none}
+.cp-selectrow .cp-chev{margin-left:auto;fill:var(--fg-dim)}
+.cp-qlist{margin-top:8px;display:flex;flex-direction:column;gap:2px;max-height:200px;overflow-y:auto}
+.cp-qlist[hidden]{display:none}
+.cp-qitem{padding:10px 12px;border:0;border-radius:10px;background:transparent;color:var(--fg);font-size:14px;text-align:left;cursor:pointer}
+.cp-qitem:hover{background:var(--bg-elev)}
+.cp-radio{position:relative;display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:14px;margin-bottom:10px;cursor:pointer}
+.cp-radio:last-child{margin-bottom:0}
+.cp-radio.on{border-color:var(--blue)}
+.cp-radio input{position:absolute;opacity:0;pointer-events:none}
+.cp-rdot{width:18px;height:18px;border-radius:50%;border:2px solid var(--fg-dim);flex:none;margin-top:1px;display:grid;place-items:center}
+.cp-radio.on .cp-rdot{border-color:var(--blue)}
+.cp-radio.on .cp-rdot::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--blue)}
+.cp-rtxt b{display:block;font-size:15px;font-weight:600}
+.cp-rtxt small{display:block;color:var(--fg-dim);font-size:12.5px;margin-top:3px;line-height:1.5}
+.cp-selectwrap select{width:100%;padding:13px 14px;border:0;border-radius:12px;background:var(--chip);color:var(--fg);font-size:15px;appearance:none;-webkit-appearance:none;cursor:pointer}
+@media(max-width:840px){
+  #cpFab{right:14px;bottom:calc(78px + env(safe-area-inset-bottom))}
+  #cpPanel{right:8px;left:8px;width:auto;bottom:calc(78px + env(safe-area-inset-bottom));padding-bottom:14px}
+}
+
+/* Rounded YouTube-like controls and reference-matched view switch */
+.subsHead{gap:16px;flex-wrap:wrap}
+.subs-view-toggle{display:inline-flex;align-items:center;padding:2px;border-radius:999px;background:var(--chip);flex:none}
+.subs-view-btn{width:36px;height:36px;padding:0;border:0;border-radius:50%;display:grid;place-items:center;background:transparent;color:var(--fg-dim);cursor:pointer;transition:background .18s,color .18s,transform .18s}
+.subs-view-btn svg{width:19px;height:19px;fill:currentColor}
+.subs-view-btn.on{background:var(--chip-on);color:var(--bg)}
+.subs-view-btn:not(.on):hover{color:var(--fg);background:var(--bg-hover)}
+.subs-view-btn:active{transform:scale(.9)}
+.desc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px 16px;flex-wrap:wrap}
+#desc .desc-top b{margin:0}
+.desc-sources{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;white-space:normal}
+.desc-sources span{display:inline-flex;align-items:center;background:var(--bg-hover);color:var(--fg-dim);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:12px;line-height:1.4;font-weight:600;white-space:nowrap}
+#desc .desc-body{margin-top:6px}
+#cpFab{border-radius:50% !important;width:48px;height:48px;background:var(--bg-hover);border:1px solid var(--line);box-shadow:0 4px 16px rgba(0,0,0,.3)}
+#cpFab:hover{background:var(--chip);transform:scale(1.06)}
+#cpFab svg{width:22px;height:22px;transition:transform .28s var(--ease)}
+#cpFab[aria-expanded="true"] svg{transform:rotate(65deg)}
+#cpPanel{border-radius:18px;transform-origin:bottom right}
+#cpPanel[hidden]{display:none}
+#cpPanel.is-opening{animation:cp-open .46s cubic-bezier(.34,1.56,.64,1) both}
+#cpPanel.is-closing{animation:cp-close .24s cubic-bezier(.4,0,1,1) both;pointer-events:none}
+#cpPanel.is-opening .cp-head,#cpPanel.is-opening .cp-tabs,#cpPanel.is-opening .cp-body:not([hidden]) .cp-card{animation:cp-content .32s cubic-bezier(.16,1,.3,1) both}
+#cpPanel.is-opening .cp-head{animation-delay:.045s}
+#cpPanel.is-opening .cp-tabs{animation-delay:.085s}
+#cpPanel.is-opening .cp-body:not([hidden]) .cp-card:first-child{animation-delay:.12s}
+#cpPanel.is-opening .cp-body:not([hidden]) .cp-card:nth-child(2){animation-delay:.16s}
+@keyframes cp-open{0%{opacity:0;transform:translateY(30px) scale(.88);filter:blur(3px)}65%{opacity:1;filter:blur(0)}100%{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}}
+@keyframes cp-close{from{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}to{opacity:0;transform:translateY(19px) scale(.9);filter:blur(2px)}}
+@keyframes cp-content{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.aboutPage{max-width:760px;padding:8px 0 48px}
+.aboutPage h1{font-size:28px;line-height:1.3;margin:12px 0 22px}
+.aboutPage h2{font-size:18px;margin:30px 0 10px}
+.aboutPage p{color:var(--fg-dim);line-height:1.8;margin:0 0 12px}
+.aboutPage .about-brand{font-size:18px;font-weight:700;color:var(--fg)}
+.aboutPage .about-rule{border-top:1px solid var(--line);margin-top:22px}
+.about-link{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:999px;background:var(--chip);color:var(--fg);padding:10px 16px;font:inherit;cursor:pointer}
+.about-link:hover{background:var(--bg-hover)}
+#sideFoot .about-link{font-size:12px;padding:8px 12px;margin-left:-12px}
+.cp-tab{border:0;border-radius:999px;background:var(--chip)}
+.cp-tab.on{background:var(--chip-on);color:var(--bg)}
+.cp-selectrow,.cp-selectwrap select{border-radius:12px}
+.cp-switch i{border-radius:999px}
+@media(max-width:600px){.desc-sources{margin-left:0;justify-content:flex-start}.desc-top{display:block}.desc-sources{margin-top:7px}#cpPanel{transform-origin:bottom center}}
+/* ChromeOS can inherit a reduced-motion setting: keep a gentle fade rather than an instant jump. */
+@keyframes cp-reduced-in{from{opacity:0}to{opacity:1}}
+@keyframes cp-reduced-out{from{opacity:1}to{opacity:0}}
+@media(prefers-reduced-motion:reduce){
+  #cpPanel.is-opening{animation:cp-reduced-in .14s ease-out both !important}
+  #cpPanel.is-closing{animation:cp-reduced-out .12s ease-in both !important}
+  #cpPanel.is-opening .cp-head,#cpPanel.is-opening .cp-tabs,#cpPanel.is-opening .cp-body:not([hidden]) .cp-card{animation:none !important}
+  #cpFab svg,.subs-view-btn{transition:none}
+}
+</style>
 </head>
 <body>
 
@@ -1263,7 +1374,7 @@ dialog,
     <div class="stitle">登録チャンネル</div>
     <div id="subList"></div>
   </div>
-  <div id="sideFoot">NKYS Tube Pro</div>
+  <div id="sideFoot"><button type="button" class="about-link" data-nav="about">NKYS Tube Proについて</button></div>
 </nav>
 <div id="scrim"></div>
 
@@ -1392,6 +1503,24 @@ const POOLS = {
 };
 const FALLBACK_ALL = [...new Set(Object.values(POOLS).flat())];
 
+/* API 選択（コントロールパネル）: 設定に合わせて各役割プールの優先順を並べ替える */
+function applyApiPrefs() {
+  const uniq = (a) => [...new Set(a)];
+  const sa = S.settings.streamApi || "invidious";
+  const ia = S.settings.infoApi || "invidious";
+  const restInv = INV_ALL.filter((b) => b !== WORKER_API);
+  if (sa === "worker") POOLS.stream = uniq([WORKER_API, OMADA].concat(restInv));
+  else POOLS.stream = INV_STREAM.slice();
+  if (ia === "worker") {
+    POOLS.video = uniq([WORKER_API, OMADA].concat(restInv));
+    POOLS.search = POOLS.trending = POOLS.comments = POOLS.channel = uniq([WORKER_API].concat(restInv));
+  } else {
+    POOLS.video = uniq(INV_STREAM.concat(restInv));
+    POOLS.search = POOLS.trending = POOLS.comments = POOLS.channel = INV_ALL.slice();
+  }
+  S.__infoPipedFirst = ia === "piped";
+}
+
 /* siatube API（検索 / ショート） */
 const SIA = "https://siatube.com";
 /* チャンネルとライブ配信は Siatube API の専用エンドポイントから取得 */
@@ -1406,7 +1535,7 @@ const LS = {
   set(k, v) { try { localStorage.setItem("nkys_" + k, JSON.stringify(v)); } catch (_) {} },
 };
 const S = {
-  settings: Object.assign({ proxy: true, adaptive: false, autoplay: true, quality: "auto", theme: "dark", playerMode: "nocookie", saveSearches: true, saveHistory: true, region: "JP" }, LS.get("settings", {})),
+  settings: Object.assign({ proxy: true, adaptive: false, autoplay: true, quality: "auto", theme: "dark", playerMode: "nocookie", saveSearches: true, saveHistory: true, region: "JP", loop: false, mute: false, streamApi: "invidious", infoApi: "invidious" }, LS.get("settings", {})),
   subs: LS.get("subs", []),
   history: LS.get("history", []),
   searches: LS.get("searches", []),
@@ -1658,16 +1787,18 @@ function rememberVideo(v) {
 }
 function getCommentsFast(id) {
   if (commentJobs.has(id)) return commentJobs.get(id);
+  const pipedComments = () => pipedGet("/comments/" + encodeURIComponent(id)).then((d) => ({
+    commentCount: d.commentCount,
+    comments: (d.comments || []).map((c) => ({ author:c.author, authorId:pipedChannelId(c.commentorUrl), authorThumbnails:c.thumbnail ? [{url:c.thumbnail}] : [], content:c.commentText || "", publishedText:c.commentedTime || "", likeCount:c.likeCount || 0 }))
+  }));
   const sources = [() => siaComments(id), () => wkComments(id),
     () => api("comments", "/api/v1/comments/" + id + "?sort_by=top"),
     () => nivComments(id)];
+  if (S.__infoPipedFirst) sources.unshift(pipedComments);
   const promise = Promise.any(sources.map((fn) => fn().then((v) => {
     if (!v || !Array.isArray(v.comments)) throw new Error("No comments");
     return v;
-  }))).catch(() => pipedGet("/comments/" + encodeURIComponent(id)).then((d) => ({
-    commentCount: d.commentCount,
-    comments: (d.comments || []).map((c) => ({ author:c.author, authorId:pipedChannelId(c.commentorUrl), authorThumbnails:c.thumbnail ? [{url:c.thumbnail}] : [], content:c.commentText || "", publishedText:c.commentedTime || "", likeCount:c.likeCount || 0 }))
-  })));
+  }))).catch(() => S.__infoPipedFirst ? Promise.reject(new Error("no comments")) : pipedComments());
   commentJobs.set(id, promise);
   promise.catch(() => commentJobs.delete(id));
   if (commentJobs.size > 40) commentJobs.delete(commentJobs.keys().next().value);
@@ -1798,8 +1929,12 @@ async function getVideo(id, signal) {
     });
     if (signal && signal.aborted) throw Object.assign(new Error("aborted"), { name: "AbortError" });
     const { omada, inv, piped, yta, niv, wkv } = R;
-    const v = hasStreams(omada) ? omada : (hasStreams(inv) ? inv : (hasStreams(piped) ? piped : (wkv || niv || omada || inv || piped || yta)));
+    const sp0 = S.settings.streamApi || "invidious";
+    const chain = sp0 === "piped" ? [piped, omada, inv] : sp0 === "worker" ? [wkv, omada, inv, piped] : [omada, inv, piped];
+    const v = chain.map((k) => (hasStreams(R[k]) ? R[k] : null)).find(Boolean) ||
+      (wkv || niv || omada || inv || piped || yta);
     /* 指定の Worker API を動画詳細の主データとして使い、再生ストリームだけ既存経路を維持する */
+    if (v) { v.__streamSource = v.__src || (v === inv ? "invidious" : "unknown"); v.__infoSource = wkv ? "worker" : (v.__src || (v === inv ? "invidious" : "unknown")); }
     if (v && wkv) {
       v.title = wkv.title || v.title;
       v.author = wkv.author || v.author;
@@ -3257,7 +3392,7 @@ async function pageWatch(id, startAt) {
           </div>
         </div>
       </div>
-      <div id="desc" class="skel" style="height:60px;margin-top:16px"></div>
+      <div id="desc"><div class="desc-top"><b>概要</b><div class="desc-sources"><span id="infoApiBadge">情報API: 取得中</span><span id="streamApiBadge">ストリームAPI: ${mode0 === "edu" ? "YOUTUBE EDUCATION" : mode0 === "nocookie" ? "YOUTUBE NOCOOKIE" : "取得中"}</span></div></div><div class="desc-body"></div></div>
       <div class="sechead" id="commentHead"><span>コメント</span></div>
       <div id="comments"><div class="spinner"></div></div>
     </div>
@@ -3269,7 +3404,7 @@ async function pageWatch(id, startAt) {
     $(".owner").innerHTML = '<img class="author-av" src="' + esc(authorImg(known) || "") + '" alt=""><div><div class="oname">' + esc(known.author) + '</div></div>';
   }
   if (known && known.description) {
-    $("#desc").outerHTML = '<div id="desc"><div class="desc-body">' + descriptionHtml(known.description) + '</div></div>';
+    $("#desc .desc-body").innerHTML = descriptionHtml(known.description);
   }
   loadComments(id, commentsPromise);
   siaPromise.then((meta) => {
@@ -3277,7 +3412,12 @@ async function pageWatch(id, startAt) {
     rememberVideo(meta);
     if (meta.title) { $("#vtitle").classList.remove("skel"); $("#vtitle").textContent = meta.title; }
     if (meta.author) $(".owner").innerHTML = '<img class="author-av" src="' + esc(authorImg(meta) || "") + '" alt=""><div><div class="oname">' + esc(meta.author) + '</div></div>';
-    if (meta.description) $("#desc").outerHTML = '<div id="desc"><div class="desc-body">' + descriptionHtml(meta.description) + '</div></div>';
+    if (meta.description) {
+      const body = $("#desc .desc-body");
+      if (body) body.innerHTML = descriptionHtml(meta.description);
+      else $("#desc .desc-body").innerHTML = descriptionHtml(meta.description);
+    }
+    const badge = $("#infoApiBadge"); if (badge) badge.textContent = "情報API: SIATUBE";
     if (meta.recommendedVideos && meta.recommendedVideos.length) loadSide(meta);
   });
 
@@ -3291,6 +3431,10 @@ async function pageWatch(id, startAt) {
     if (sx) v = sx;
     else {
       if (!isAbort(e)) $("#playerWrap").innerHTML = '<div class="empty" style="color:#fff">動画を読み込めませんでした。</div>';
+      if (!isAbort(e) && wrap.isConnected) {
+        $("#infoApiBadge").textContent = "情報API: 利用不可";
+        if (mode0 === "stream") $("#streamApiBadge").textContent = "ストリームAPI: 利用不可";
+      }
       return;
     }
   }
@@ -3299,8 +3443,8 @@ async function pageWatch(id, startAt) {
   /* siatube の情報でタイトル / 概要欄 / 関連動画 / 各種メタを上書き */
   const sia = await Promise.race([siaPromise, Promise.resolve(null)]);
   if (sia && !nav.abort.signal.aborted) {
-    if (sia.title) v.title = sia.title;
-    if (sia.description) v.description = sia.description;
+    if (sia.title) { v.title = sia.title; v.__infoSource = "siatube"; }
+    if (sia.description) { v.description = sia.description; v.__infoSource = "siatube"; }
     if (sia.recommendedVideos && sia.recommendedVideos.length) v.recommendedVideos = sia.recommendedVideos;
     if (sia.viewCount) v.viewCount = sia.viewCount;
     if (sia.likeCount) v.likeCount = sia.likeCount;
@@ -3347,7 +3491,10 @@ async function pageWatch(id, startAt) {
       </div>
     </div>`;
   applyAuthorIcon($(".owner img.author-av"), v);
-  $("#desc").outerHTML = `<div id="desc"><b>${fmtNum(v.viewCount)}回視聴・${esc(v.publishedText || ago(v.published))}</b><div class="desc-body">${descriptionHtml(v.description || "")}</div><button type="button" class="desc-more" aria-expanded="false">もっと見る</button></div>`;
+  const apiName = (src) => ({ omada: "INVIDIOUS", invidious: "INVIDIOUS", piped: "PIPED", worker: "WORKER", niv: "INVIDIOUS", siatube: "SIATUBE", yta: "YTAPI" })[src] || "不明";
+  const streamSource = streams.length ? apiName(v.__streamSource || v.__src) : (mode0 === "edu" ? "YOUTUBE EDUCATION" : "YOUTUBE NOCOOKIE");
+  const infoSource = apiName(v.__infoSource || v.__src || (sia ? "siatube" : "unknown"));
+  $("#desc").outerHTML = `<div id="desc"><div class="desc-top"><b>${fmtNum(v.viewCount)}回視聴・${esc(v.publishedText || ago(v.published))}</b><div class="desc-sources"><span id="infoApiBadge">情報API: ${infoSource}</span><span id="streamApiBadge">ストリームAPI: ${streamSource}</span></div></div><div class="desc-body">${descriptionHtml(v.description || "")}</div><button type="button" class="desc-more" aria-expanded="false">もっと見る</button></div>`;
   $("#commentHead").innerHTML = `<span>${fmtNum(v.commentCount || 0)} 件のコメント</span>`;
 
   window.__nkysStreams = streams;
@@ -3483,6 +3630,7 @@ function eduEmbedUrl(id, params, start) {
   sp.set("autoplay", S.settings.autoplay ? "1" : "0");
   sp.set("start", String(Math.max(0, Math.round(start || 0))));
   sp.set("enablejsapi", "1");
+  if (S.settings.loop) { sp.set("loop", "1"); sp.set("playlist", String(id || "")); }
   return "https://youtubeeducation.com/embed/" + encodeURIComponent(id) + "?" + sp.toString();
 }
 
@@ -3517,6 +3665,7 @@ function mountPlayer(mode, opt) {
     f.referrerPolicy = "strict-origin-when-cross-origin";
     f.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(opt.id) +
       "?autoplay=" + (S.settings.autoplay ? 1 : 0) + "&rel=0&modestbranding=1&enablejsapi=1" +
+      (S.settings.loop ? "&loop=1&playlist=" + encodeURIComponent(opt.id) : "") +
       (opt.start > 0 ? "&start=" + Math.round(opt.start) : "") +
       "&origin=" + encodeURIComponent(location.origin);
     f.dataset.vid = opt.id;
@@ -3529,6 +3678,8 @@ function mountPlayer(mode, opt) {
   if (S.settings.autoplay) vp.autoplay = true;
   if (opt.poster) vp.poster = opt.poster;
   box.appendChild(vp);
+  vp.loop = !!S.settings.loop;
+  vp.muted = !!S.settings.mute;
   /* &t= で指定された再生開始位置 (秒/分/時) へシーク */
   if (opt.start > 0) {
     const seekOnce = () => { try { vp.currentTime = opt.start; } catch (_) {} };
@@ -3550,6 +3701,7 @@ function mountPlayer(mode, opt) {
       '<div class="empty" style="position:absolute;inset:0;display:grid;place-items:center;color:#fff">ストリームを取得できませんでした</div>');
   }
   vp.addEventListener("ended", () => {
+    if (S.settings.loop) { vp.currentTime = 0; vp.play().catch(() => {}); return; }
     if (playlistNext()) return;
     const n = $("#side .rel-item"); if (S.settings.autoplay && n) n.click();
   });
@@ -5213,9 +5365,12 @@ function pageSettings() {
     row("検索履歴を削除", "保存中: " + S.searches.length + " 件", '<button class="danger" id="stClearSearches">検索履歴を削除</button>') +
     row("視聴履歴を削除", "保存中: " + S.history.length + " 件", '<button class="danger" id="stClearHistory">視聴履歴を削除</button>') +
     row("すべてのデータを削除", "設定・登録チャンネル・再生リストを含むすべてを初期化します", '<button class="danger" id="stResetAll">すべて削除</button>') +
-    "</div>";
+    "</div>" +
+    '<button type="button" class="about-link" id="stAbout">NKYS Tube Proについて →</button>';
   view().innerHTML = "";
   view().appendChild(wrap);
+
+  $("#stAbout", wrap).onclick = () => go("/about");
 
   const on = (id, fn2) => { const e = $("#" + id, wrap); if (e) e.onchange = fn2; };
   on("stTheme", (e) => {
@@ -5238,6 +5393,22 @@ function pageSettings() {
     try { Object.keys(localStorage).filter((k) => k.indexOf("nkys_") === 0).forEach((k) => localStorage.removeItem(k)); } catch (_) {}
     location.href = "/";
   };
+}
+function pageAbout() {
+  setChips(null);
+  const wrap = el("div", "aboutPage");
+  wrap.innerHTML =
+    '<h1>NKYS Tube Proについて</h1>' +
+    '<p class="about-brand">NKYS Tube Pro</p>' +
+    '<p>動画やショートを探して視聴できる動画プレーヤーです。</p>' +
+    '<div class="about-rule"></div>' +
+    '<h2>再生と取得元</h2>' +
+    '<p>動画の再生にはストリーム再生または YouTube の埋め込みを利用します。動画情報や検索結果は外部の動画 API から取得します。利用できる取得元は接続状況によって変わります。</p>' +
+    '<p>視聴画面のコントロールパネルから、再生方法、ループ再生、API の優先設定を切り替えられます。</p>' +
+    '<div class="about-rule"></div>' +
+    '<h2>この端末のデータ</h2>' +
+    '<p>登録チャンネル、視聴履歴、再生リスト、設定はこのブラウザに保存されます。設定画面から削除できます。</p>';
+  view().replaceChildren(wrap);
 }
 function pageMyPage() {
   setChips(null);
@@ -5303,9 +5474,15 @@ function subsChannelList() {
   const wrap = el("div");
   const head = el("div", "subsHead");
   head.innerHTML = "<h2>登録チャンネル (" + S.subs.length + ")</h2>";
-  const toggle = el("button", "pill", S.subsView === "row" ? "アイコン表示" : "リスト表示");
-  toggle.onclick = () => {
-    S.subsView = S.subsView === "row" ? "icon" : "row";
+  const toggle = el("div", "subs-view-toggle");
+  toggle.setAttribute("role", "group");
+  toggle.setAttribute("aria-label", "登録チャンネルの表示形式");
+  toggle.innerHTML = '<button type="button" class="subs-view-btn' + (S.subsView === "icon" ? ' on' : '') + '" data-view="icon" aria-label="アイコン表示" title="アイコン表示" aria-pressed="' + (S.subsView === "icon") + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h8v8h-8zm2 2v4h4v-4z"/></svg></button>' +
+    '<button type="button" class="subs-view-btn' + (S.subsView === "row" ? ' on' : '') + '" data-view="row" aria-label="リスト表示" title="リスト表示" aria-pressed="' + (S.subsView === "row") + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h3v3H3zm5 0h13v2H8zM3 11h3v3H3zm5 0h13v2H8zM3 17h3v3H3zm5 0h13v2H8z"/></svg></button>';
+  toggle.onclick = (e) => {
+    const btn = e.target.closest("[data-view]");
+    if (!btn || btn.dataset.view === S.subsView) return;
+    S.subsView = btn.dataset.view;
     LS.set("subsView", S.subsView); pageSubs();
   };
   head.appendChild(toggle);
@@ -5609,6 +5786,7 @@ function renderPage() {
   if (p === "/shorts" || p === "/short") return pageShorts(sp.get("v"));
   if (p === "/mypage") { document.title = "マイページ - NKYS Tube Pro"; return pageMyPage(); }
   if (p === "/settings") { document.title = "設定 - NKYS Tube Pro"; return pageSettings(); }
+  if (p === "/about") { document.title = "NKYS Tube Proについて"; return pageAbout(); }
   if (p === "/feed/channels" || p === "/subs") return pageSubs();
   if (p === "/history") return localPage("履歴", S.history);
   if (p === "/liked") return localPage("高く評価した動画", S.liked);
@@ -5874,7 +6052,7 @@ render();
     let d; try { d = typeof e.data === "string" ? JSON.parse(e.data) : e.data; } catch (_) { return; }
     if (!d || !d.info) return;
     if (track.frame && track.frame.contentWindow === e.source && typeof d.info.currentTime === "number") {
-      track.time = d.info.currentTime;
+      track.time = d.info.currentTime; window.__nkysEmbedTime = track.time;
     }
     const mf = mini.querySelector("iframe");
     if (mf && mf.contentWindow === e.source && typeof d.info.currentTime === "number") {
@@ -5981,6 +6159,188 @@ document.addEventListener("scroll",function(){
   var h=document.querySelector("header");
   if(h) h.classList.toggle("scrolled", window.scrollY>4);
 },{passive:true});
+
+/* =============================================================
+   コントロールパネル（watch 画面 右下のギアボタン）
+   ============================================================= */
+(function () {
+  const GEAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.43 12.98c.04-.32.07-.65.07-.98s-.03-.66-.07-.98l2.11-1.65a.5.5 0 00.12-.64l-2-3.46a.5.5 0 00-.61-.22l-2.49 1a7.3 7.3 0 00-1.7-.98l-.38-2.65A.5.5 0 0014 2h-4a.5.5 0 00-.49.42l-.38 2.65c-.61.25-1.17.58-1.7.98l-2.49-1a.5.5 0 00-.61.22l-2 3.46a.5.5 0 00.12.64l2.11 1.65c-.04.32-.07.66-.07.98s.03.66.07.98L2.55 14.63a.5.5 0 00-.12.64l2 3.46a.5.5 0 00.61.22l2.49-1c.53.4 1.09.73 1.7.98l.38 2.65A.5.5 0 0010 22h4a.5.5 0 00.49-.42l.38-2.65c.61-.25 1.17-.58 1.7-.98l2.49 1a.5.5 0 00.61-.22l2-3.46a.5.5 0 00-.12-.64l-2.12-1.65zM12 15.5A3.5 3.5 0 1115.5 12 3.5 3.5 0 0112 15.5z"/></svg>';
+  const X = '<svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
+  const TUNE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>';
+  const CHEV = '<svg viewBox="0 0 24 24" class="cp-chev" aria-hidden="true"><path d="M9.7 6.3 8.3 7.7l4.3 4.3-4.3 4.3 1.4 1.4 5.7-5.7z"/></svg>';
+  document.body.insertAdjacentHTML("beforeend",
+    '<button type="button" id="cpFab" aria-label="コントロールパネル" title="コントロールパネル">' + GEAR + '</button>' +
+    '<aside id="cpPanel" role="dialog" aria-label="コントロールパネル" hidden>' +
+      '<div class="cp-head"><h2>コントロールパネル</h2><button type="button" class="cp-close" id="cpClose" aria-label="閉じる">' + X + '</button></div>' +
+      '<div class="cp-tabs" role="tablist">' +
+        '<button type="button" class="cp-tab on" data-cp-tab="play">再生</button>' +
+        '<button type="button" class="cp-tab" data-cp-tab="src">ソース</button>' +
+        '<button type="button" class="cp-tab" data-cp-tab="api">API</button>' +
+      '</div>' +
+      '<div class="cp-body" data-cp-pane="play">' +
+        '<div class="cp-card">' +
+          '<div class="cp-cardlabel">プレイヤーコントロール</div>' +
+          '<div class="cp-row"><span>ループ再生</span><label class="cp-switch"><input type="checkbox" id="cpLoop"><i></i></label></div>' +
+          '<div class="cp-row"><span>音声ミュート</span><label class="cp-switch"><input type="checkbox" id="cpMute"><i></i></label></div>' +
+        '</div>' +
+        '<div class="cp-card">' +
+          '<div class="cp-cardlabel">画質設定</div>' +
+          '<button type="button" class="cp-selectrow" id="cpQualityBtn" aria-expanded="false">' + TUNE +
+            '<span id="cpQualityLabel">画質を選択…</span>' + CHEV + '</button>' +
+          '<div id="cpQualityList" class="cp-qlist" hidden></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cp-body" data-cp-pane="src" hidden>' +
+        '<div class="cp-card">' +
+          '<div class="cp-cardlabel">埋め込み・再生モード</div>' +
+          '<label class="cp-radio"><input type="radio" name="cpMode" value="stream"><span class="cp-rdot"></span><span class="cp-rtxt"><b>Stream (デフォルト)</b><small>標準のストリーミングプレイヤーで再生します。</small></span></label>' +
+          '<label class="cp-radio"><input type="radio" name="cpMode" value="nocookie"><span class="cp-rdot"></span><span class="cp-rtxt"><b>YouTube NoCookie</b><small>youtube-nocookie.com の埋め込みプレイヤーを使用します。</small></span></label>' +
+          '<label class="cp-radio"><input type="radio" name="cpMode" value="edu"><span class="cp-rdot"></span><span class="cp-rtxt"><b>YouTube Education</b><small>標準のYouTube Embedプレイヤーを使用します。</small></span></label>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cp-body" data-cp-pane="api" hidden>' +
+        '<div class="cp-card">' +
+          '<div class="cp-cardlabel">ストリーム取得 API</div>' +
+          '<div class="cp-selectwrap"><select id="cpStreamApi">' +
+            '<option value="invidious">Invidious API</option>' +
+            '<option value="piped">Piped API</option>' +
+            '<option value="worker">Worker API</option>' +
+          '</select></div>' +
+        '</div>' +
+        '<div class="cp-card">' +
+          '<div class="cp-cardlabel">情報取得 API</div>' +
+          '<div class="cp-selectwrap"><select id="cpInfoApi">' +
+            '<option value="invidious">Invidious API</option>' +
+            '<option value="piped">Piped API</option>' +
+            '<option value="worker">Worker API</option>' +
+          '</select></div>' +
+        '</div>' +
+      '</div>' +
+    '</aside>');
+
+  const fab = $("#cpFab"), panel = $("#cpPanel");
+  const applyPlayPrefs = () => {
+    const vp = document.querySelector("#vp");
+    if (vp) { vp.loop = !!S.settings.loop; vp.muted = !!S.settings.mute; }
+    const f = document.querySelector("#playerWrap iframe#ytFrame");
+    if (f && f.contentWindow) {
+      try { f.contentWindow.postMessage(JSON.stringify({ event: "command", func: S.settings.mute ? "mute" : "unMute", args: [] }), "*"); } catch (_) {}
+    }
+  };
+  const syncQuality = () => {
+    const streams = window.__nkysStreams || [];
+    const qsel = $("#qsel");
+    let label = "画質を選択…";
+    if (streams.length && qsel && qsel.value !== "" && streams[+qsel.value]) label = streams[+qsel.value].label;
+    $("#cpQualityLabel").textContent = label;
+    const list = $("#cpQualityList");
+    list.hidden = true;
+    list.innerHTML = "";
+    if (!streams.length) return;
+    streams.forEach((s, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "cp-qitem"; b.textContent = s.label;
+      b.onclick = () => {
+        if (qsel) { qsel.value = String(i); qsel.dispatchEvent(new Event("change")); }
+        S.settings.quality = String(s.label).split(" ")[0]; saveSettings();
+        $("#cpQualityLabel").textContent = s.label;
+        list.hidden = true;
+        toast("画質: " + s.label);
+      };
+      list.appendChild(b);
+    });
+  };
+  const syncPanel = () => {
+    $("#cpLoop").checked = !!S.settings.loop;
+    $("#cpMute").checked = !!S.settings.mute;
+    const pw = document.querySelector("#playerWrap");
+    const mode = (pw && pw.dataset.mode) || "";
+    const cur = (mode === "nocookie" || mode === "edu") ? mode : "stream";
+    panel.querySelectorAll('input[name="cpMode"]').forEach((r) => { r.checked = r.value === cur; });
+    panel.querySelectorAll(".cp-radio").forEach((l) => l.classList.toggle("on", l.querySelector("input").checked));
+    $("#cpStreamApi").value = S.settings.streamApi || "invidious";
+    $("#cpInfoApi").value = S.settings.infoApi || "invidious";
+    syncQuality();
+  };
+  let closeTimer;
+  const closePanel = () => {
+    if (panel.hidden || panel.classList.contains("is-closing")) return;
+    clearTimeout(closeTimer);
+    panel.classList.remove("is-opening");
+    panel.classList.add("is-closing");
+    fab.setAttribute("aria-expanded", "false");
+    closeTimer = setTimeout(() => { panel.hidden = true; panel.classList.remove("is-closing"); }, matchMedia("(prefers-reduced-motion: reduce)").matches ? 120 : 240);
+  };
+  const openPanel = () => {
+    clearTimeout(closeTimer);
+    syncPanel();
+    panel.classList.remove("is-closing");
+    panel.hidden = false;
+    panel.classList.remove("is-opening");
+    void panel.offsetWidth;
+    panel.classList.add("is-opening");
+    fab.setAttribute("aria-expanded", "true");
+  };
+  fab.setAttribute("aria-controls", "cpPanel"); fab.setAttribute("aria-expanded", "false");
+
+  fab.addEventListener("click", (e) => { e.stopPropagation(); panel.hidden || panel.classList.contains("is-closing") ? openPanel() : closePanel(); });
+  $("#cpClose").addEventListener("click", closePanel);
+  document.addEventListener("click", (e) => {
+    if (panel.hidden) return;
+    if (!e.target.closest("#cpPanel") && !e.target.closest("#cpFab")) closePanel();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !panel.hidden) closePanel(); });
+
+  panel.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-cp-tab]");
+    if (!t) return;
+    panel.querySelectorAll(".cp-tab").forEach((b) => b.classList.toggle("on", b === t));
+    panel.querySelectorAll(".cp-body").forEach((p) => { p.hidden = p.dataset.cpPane !== t.dataset.cpTab; });
+  });
+
+  $("#cpLoop").addEventListener("change", (e) => {
+    S.settings.loop = e.target.checked; saveSettings(); applyPlayPrefs();
+    const pw = document.querySelector("#playerWrap");
+    if (pw && (pw.dataset.mode === "nocookie" || pw.dataset.mode === "edu")) {
+      const frame = pw.querySelector("iframe#ytFrame");
+      if (frame && frame.dataset.vid) {
+        const mode = pw.dataset.mode;
+        const time = Math.max(0, Math.round(window.__nkysEmbedTime || 0));
+        mountPlayer(mode, { id: frame.dataset.vid, v: window.__nkysVideo, start: time });
+      }
+    }
+    toast(e.target.checked ? "ループ再生: オン" : "ループ再生: オフ");
+  });
+  $("#cpMute").addEventListener("change", (e) => {
+    S.settings.mute = e.target.checked; saveSettings(); applyPlayPrefs();
+    toast(e.target.checked ? "音声をミュートしました" : "音声をオンにしました");
+  });
+  $("#cpQualityBtn").addEventListener("click", () => {
+    const list = $("#cpQualityList");
+    syncQuality();
+    list.hidden = !list.hidden;
+    $("#cpQualityBtn").setAttribute("aria-expanded", String(!list.hidden));
+  });
+  panel.querySelectorAll('input[name="cpMode"]').forEach((r) => {
+    r.addEventListener("change", () => {
+      if (!r.checked) return;
+      panel.querySelectorAll(".cp-radio").forEach((l) => l.classList.toggle("on", l.querySelector("input").checked));
+      if (window.__nkysSetMode) { window.__nkysSetMode(r.value); toast("再生モードを切り替えました"); }
+      else { S.settings.playerMode = (r.value === "nocookie" || r.value === "edu") ? r.value : "stream"; saveSettings(); }
+    });
+  });
+  $("#cpStreamApi").addEventListener("change", (e) => {
+    S.settings.streamApi = e.target.value; saveSettings(); applyApiPrefs(); cache.clear();
+    toast("ストリーム取得 API を切り替えました");
+  });
+  $("#cpInfoApi").addEventListener("change", (e) => {
+    S.settings.infoApi = e.target.value; saveSettings(); applyApiPrefs(); cache.clear();
+    toast("情報取得 API を切り替えました");
+  });
+
+  applyApiPrefs();
+  applyPlayPrefs();
+})();
 
 </script>
 
