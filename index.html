@@ -852,6 +852,26 @@ body.theater .watch{padding-bottom:80px}
 .short .sh-pausei.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
 .short .sh-pausei svg{width:36px;height:36px;fill:#fff}
 
+/* Desktop Shorts: video centered, information to its left and actions to its right. */
+@media(min-width:861px){
+  body.is-shorts main{padding-bottom:0}
+  body.is-shorts #shortsView{height:calc(100dvh - var(--hdr));scroll-padding-top:0}
+  body.is-shorts #shortsView .short{height:calc(100dvh - var(--hdr) - 18px);min-height:500px}
+  body.is-shorts .short .sh-stage{height:calc(100dvh - var(--hdr) - 20px);max-height:720px;max-width:calc((100vw - var(--rail) - 420px) * .6);overflow:visible;margin-left:0;box-shadow:none}
+  body.is-shorts .short .sh-stage.embed{overflow:visible}
+  body.is-shorts .short .sh-stage iframe{clip-path:inset(12.7%);border-radius:16px}
+  body.is-shorts .short .sh-poster,body.is-shorts .short .sh-stage video{border-radius:12px}
+  body.is-shorts .short .sh-overlay{left:auto;right:calc(100% + 24px);width:min(300px,calc((100vw - var(--rail) - 580px) / 2));min-width:160px;bottom:16px;background:none;padding:0;text-shadow:none;z-index:5}
+  body.is-shorts .short .sh-title{font-size:18px;font-weight:700;line-height:1.4;margin-top:10px;max-height:2.8em;overflow:hidden}
+  body.is-shorts .short .sh-owner{flex-wrap:wrap;gap:8px}
+  body.is-shorts .short .sh-side{right:-64px;bottom:20px;gap:10px}
+  body.is-shorts .short .sh-act{background:var(--bg-hover)}
+  body.is-shorts .short .sh-modesw{opacity:0;transition:opacity .2s}
+  body.is-shorts .short .sh-stage:hover .sh-modesw,body.is-shorts .short .sh-modesw:focus-within{opacity:1}
+  body.is-shorts .shorts-next{position:fixed;right:24px;top:56%;width:56px;height:56px;border:0;border-radius:50%;background:var(--bg-hover);color:var(--fg);font-size:30px;cursor:pointer;z-index:20}
+  body.is-shorts .shorts-next:hover{background:var(--line)}
+}
+@media(max-width:860px){.shorts-next{display:none}}
 </style>
 
 <style id="search-channel-icon-style">
@@ -1077,7 +1097,7 @@ dialog,
 .searchSpotlightItem .spItemMeta{margin-top:4px;color:var(--fg-dim);font-size:12px}
 .searchResultsLayout{display:grid;grid-template-columns:minmax(0,1fr) 386px;gap:28px;align-items:start;max-width:1540px}
 .searchResultsMain{min-width:0}
-.searchResultsSide{position:sticky;top:68px;min-width:0}
+.searchResultsSide{position:static;min-width:0}
 .searchResultsSide:empty{display:none}
 .searchResultsLayout:has(.searchResultsSide:empty){grid-template-columns:minmax(0,1fr)}
 .searchResultsSide .searchSpotlight{width:100%;margin:8px 0 18px}
@@ -1375,7 +1395,7 @@ const LS = {
   set(k, v) { try { localStorage.setItem("nkys_" + k, JSON.stringify(v)); } catch (_) {} },
 };
 const S = {
-  settings: Object.assign({ proxy: true, adaptive: false, autoplay: true, quality: "auto", theme: "dark", playerMode: "nocookie", saveSearches: true, saveHistory: true, region: "JP" }, LS.get("settings", {})),
+  settings: Object.assign({ proxy: true, adaptive: false, autoplay: true, quality: "auto", theme: "dark", playerMode: "stream", saveSearches: true, saveHistory: true, region: "JP" }, LS.get("settings", {})),
   subs: LS.get("subs", []),
   history: LS.get("history", []),
   searches: LS.get("searches", []),
@@ -1597,6 +1617,31 @@ async function race(bases, path, signal, opt) {
 }
 
 const cache = new Map(), TTL = 300000, inflight = new Map();
+const previewVideos = new Map();
+const commentJobs = new Map();
+function rememberVideo(v) {
+  const id = vidOf(v);
+  if (!id) return;
+  previewVideos.set(id, Object.assign({}, previewVideos.get(id) || {}, v));
+  if (previewVideos.size > 180) previewVideos.delete(previewVideos.keys().next().value);
+}
+function getCommentsFast(id) {
+  if (commentJobs.has(id)) return commentJobs.get(id);
+  const sources = [() => siaComments(id), () => wkComments(id),
+    () => api("comments", "/api/v1/comments/" + id + "?sort_by=top"),
+    () => nivComments(id)];
+  const promise = Promise.any(sources.map((fn) => fn().then((v) => {
+    if (!v || !Array.isArray(v.comments)) throw new Error("No comments");
+    return v;
+  }))).catch(() => pipedGet("/comments/" + encodeURIComponent(id)).then((d) => ({
+    commentCount: d.commentCount,
+    comments: (d.comments || []).map((c) => ({ author:c.author, authorId:pipedChannelId(c.commentorUrl), authorThumbnails:c.thumbnail ? [{url:c.thumbnail}] : [], content:c.commentText || "", publishedText:c.commentedTime || "", likeCount:c.likeCount || 0 }))
+  })));
+  commentJobs.set(id, promise);
+  promise.catch(() => commentJobs.delete(id));
+  if (commentJobs.size > 40) commentJobs.delete(commentJobs.keys().next().value);
+  return promise;
+}
 function api(role, path, opt) {
   const key = role + path;
   const c = cache.get(key);
@@ -1706,16 +1751,18 @@ async function getVideo(id, signal) {
     /* Worker API: /api/v1/videos/{videoid}（メタ情報 / 関連動画の追加ソース） */
     const wkP = wkVideo(id, signal).catch(() => null);
 
-    /* 高速化: ストリームを持つソースが届いた時点で短い猶予後に確定（全ソースを待たない） */
+    /* A metadata response can paint the page before slower stream endpoints settle. */
     const R = {};
     const tag = (k, pr) => pr.then((x) => { R[k] = x; return x; });
     const all = [tag("omada", omadaP), tag("inv", invP), tag("piped", pipedP), tag("yta", ytaP), tag("niv", nivP), tag("wkv", wkP)];
     await new Promise((resolve) => {
       let done = false, grace = null;
       const fin = () => { if (!done) { done = true; resolve(); } };
-      [all[0], all[1], all[2]].forEach((pr) => pr.then((x) => { if (hasStreams(x) && !grace) grace = setTimeout(fin, 500); }));
+      all.forEach((pr) => pr.then((x) => {
+        if (x && (x.title || hasStreams(x)) && !grace) grace = setTimeout(fin, hasStreams(x) ? 120 : 350);
+      }));
       Promise.all(all).then(fin);
-      setTimeout(fin, 10000);
+      setTimeout(fin, 2400);
       if (signal) signal.addEventListener("abort", fin, { once: true });
     });
     if (signal && signal.aborted) throw Object.assign(new Error("aborted"), { name: "AbortError" });
@@ -1749,6 +1796,7 @@ async function getVideo(id, signal) {
     }
     if (!v) throw new Error("video unavailable");
     cache.set(key, { v, at: Date.now() });
+    rememberVideo(v);
     return v;
   })().finally(() => inflight.delete(key));
   inflight.set(key, p);
@@ -2529,6 +2577,7 @@ function videoCard(v, mode, idx) {
   const moreBtn = card.querySelector(".card-more");
   moreBtn.onclick = (e) => { e.stopPropagation(); openCardMenu(moreBtn, v); };
   applyAuthorIcon(card.querySelector("img.author-av"), v);
+  rememberVideo(v);
   card.onclick = () => go("/watch?v=" + id);
   card.addEventListener("pointerenter", () => prefetchVideo(id), { once: true });
   card.addEventListener("touchstart", () => prefetchVideo(id), { once: true, passive: true });
@@ -2610,7 +2659,7 @@ async function homeFeed(chip, signal) {
     if (!id || seen.has(id)) return;
     v.videoId = id; seen.add(id); merged.push(v);
   };
-  /* トレンドを先頭に並べる（最速で届いたものから表示） */
+  /* Category feeds can include public listings; the personalized feed does not. */
   if (wkResult && wkResult.status === "fulfilled") {
     (wkResult.value || []).forEach(add);
   }
@@ -2648,11 +2697,18 @@ async function homeRecFeed(signal) {
     if (k && !seenQ.has(k)) { seenQ.add(k); qs.push(k); }
   });
   const watched = new Set((S.history || []).slice(0, 50).map((h) => h.videoId));
+  const related = (S.history || []).slice(0, 3).map((h) => {
+    const id = vidOf(h);
+    if (!id) return Promise.resolve([]);
+    const warm = cache.get("video|" + id);
+    return warm && warm.v && warm.v.recommendedVideos ? Promise.resolve(warm.v.recommendedVideos) :
+      Promise.race([wkVideo(id, signal).then((v) => v.recommendedVideos || []), new Promise((r) => setTimeout(() => r([]), 2500))]).catch(() => []);
+  });
   const tasks = qs.slice(0, 8).map((q) => Promise.race([
     searchVideos(q, 1, signal).catch((e) => { if (isAbort(e)) throw e; return []; }),
     new Promise((r) => setTimeout(() => r([]), 10000)),
   ]));
-  tasks.push(fetchSubsVideos(signal, 6).catch(() => []));
+  tasks.push(fetchSubsVideos(signal, 6).catch(() => []), ...related);
   const lists = await Promise.all(tasks.map((t) => Promise.resolve(t).catch(() => [])));
   if (signal && signal.aborted) throw Object.assign(new Error("aborted"), { name: "AbortError" });
   const buckets = lists.map((l) => (l || []).filter((v) => {
@@ -2668,7 +2724,8 @@ async function homeRecFeed(signal) {
     /* 履歴ベースで取れなかった場合でもエラーにせず、別経路で埋める */
     const fb = buckets.flat().filter((v) => vidOf(v));
     if (fb.length) return fb.slice(0, 60);
-    return homeFeed("すべて", signal);
+    return [];
+
   }
   return out.slice(0, 60);
 }
@@ -2705,7 +2762,7 @@ async function pageHome() {
   const signal = nav.abort.signal;
   /* Short棚: 登録チャンネル + 検索履歴のショート（無ければトレンド） */
   const shortsPromise = homeShortsFeed(signal).catch(() => []);
-  const trendPromise = homeChip === "すべて" ? homeRecFeed(signal) : homeFeed(homeChip, signal);
+  const feedPromise = homeChip === "すべて" ? homeRecFeed(signal) : homeFeed(homeChip, signal);
 
   /* Short棚: 右端まで横スクロールしたら追加読み込み */
   const shSeen = new Set();
@@ -2756,7 +2813,7 @@ async function pageHome() {
   }).catch(() => shortSec.remove());
 
   /* 前回取得したフィードを即座に描画し、裏で最新に更新（SWR） */
-  const feedKey = "feed2_" + homeChip;
+  const feedKey = "feed3_" + homeChip;
   const paintFeed = (data) => {
     if (signal.aborted) return;
     const videos = (data || []).filter((v) => (v.type ? v.type === "video" || v.type === "shortVideo" : true) && (v.videoId || v.id));
@@ -2768,7 +2825,7 @@ async function pageHome() {
   };
   const cachedFeed = LS.get(feedKey, null);
   if (cachedFeed && cachedFeed.length) paintFeed(cachedFeed);
-  trendPromise.then((data) => {
+  feedPromise.then((data) => {
     paintFeed(data);
     try { LS.set(feedKey, (data || []).slice(0, 40)); } catch (_) {}
   }).catch((e) => {
@@ -2822,6 +2879,7 @@ function shortCard(v) {
   fixTitleLater(c.querySelector(".sc-title"), v);
   const scMore = c.querySelector(".sc-more");
   if (scMore) scMore.onclick = (e) => { e.stopPropagation(); openCardMenu(scMore, v); };
+  rememberVideo(v);
   c.onclick = () => go("/short/" + id);
   return c;
 }
@@ -3132,9 +3190,12 @@ async function pageWatch(id, startAt) {
 
   /* 通信は即座に開始し、表示は後回しにしない（体感速度優先） */
   const dataPromise = getVideo(id, nav.abort.signal);
+  const commentsPromise = getCommentsFast(id);
   /* タイトル / 概要欄 / 関連動画 は siatube /api/video/{videoid} を採用 */
   const siaPromise = siaWatch(id, nav.abort.signal).catch(() => null);
 
+  const known = previewVideos.get(id) || (S.history || []).find((h) => vidOf(h) === id) ||
+    (S.later || []).find((h) => vidOf(h) === id) || (S.liked || []).find((h) => vidOf(h) === id);
   const guessThumb = "https://i.ytimg.com/vi/" + encodeURIComponent(id) + "/hqdefault.jpg";
   const mode0 = (S.settings.playerMode === "nocookie" || S.settings.playerMode === "edu") ? S.settings.playerMode : "stream";
 
@@ -3142,7 +3203,7 @@ async function pageWatch(id, startAt) {
   wrap.innerHTML = `
     <div>
       <div id="playerWrap"></div>
-      <h1 id="vtitle" class="skel" style="height:24px;width:70%;margin:12px 0 0;border-radius:6px"></h1>
+      <h1 id="vtitle" class="${known && known.title ? "" : "skel"}" style="min-height:24px;margin:12px 0 0;border-radius:6px">${known && known.title ? esc(known.title) : ""}</h1>
       <div class="owner">
         <div class="skel" style="width:40px;height:40px;border-radius:50%"></div>
         <div style="flex:1"><div class="skel" style="height:14px;width:140px;margin-bottom:6px"></div><div class="skel" style="height:12px;width:90px"></div></div>
@@ -3164,7 +3225,23 @@ async function pageWatch(id, startAt) {
     </div>
     <aside id="side"></aside>`;
   view().innerHTML = ""; view().appendChild(wrap);
-  $("#side").appendChild(ghostRelated(12));
+  if (known && (known.recommendedVideos || []).length) loadSide(known);
+  else $("#side").appendChild(ghostRelated(12));
+  if (known && known.author) {
+    $(".owner").innerHTML = '<img class="author-av" src="' + esc(authorImg(known) || "") + '" alt=""><div><div class="oname">' + esc(known.author) + '</div></div>';
+  }
+  if (known && known.description) {
+    $("#desc").outerHTML = '<div id="desc"><div class="desc-body">' + esc(known.description) + '</div></div>';
+  }
+  loadComments(id, commentsPromise);
+  siaPromise.then((meta) => {
+    if (!meta || nav.abort.signal.aborted || !wrap.isConnected) return;
+    rememberVideo(meta);
+    if (meta.title) { $("#vtitle").classList.remove("skel"); $("#vtitle").textContent = meta.title; }
+    if (meta.author) $(".owner").innerHTML = '<img class="author-av" src="' + esc(authorImg(meta) || "") + '" alt=""><div><div class="oname">' + esc(meta.author) + '</div></div>';
+    if (meta.description) $("#desc").outerHTML = '<div id="desc"><div class="desc-body">' + esc(meta.description) + '</div></div>';
+    if (meta.recommendedVideos && meta.recommendedVideos.length) loadSide(meta);
+  });
 
   /* まずポスター画像だけ即表示し、体感の読み込み速度を上げる */
   mountPlayer(mode0, { poster: guessThumb, start: startSec });
@@ -3182,7 +3259,7 @@ async function pageWatch(id, startAt) {
   if (nav.abort.signal.aborted) return;
 
   /* siatube の情報でタイトル / 概要欄 / 関連動画 / 各種メタを上書き */
-  const sia = await Promise.race([siaPromise, new Promise((r) => setTimeout(() => r(null), 800))]);
+  const sia = await Promise.race([siaPromise, Promise.resolve(null)]);
   if (sia && !nav.abort.signal.aborted) {
     if (sia.title) v.title = sia.title;
     if (sia.description) v.description = sia.description;
@@ -3335,7 +3412,7 @@ async function pageWatch(id, startAt) {
   }
 
   loadSide(v);
-  loadComments(id);
+  /* Comments already started when navigation began. */
 }
 
 /* EDU 再生: 外部の video_config.json から埋め込みパラメータを取得する */
@@ -3561,12 +3638,13 @@ async function getComments(id, signal) {
   };
 }
 
-async function loadComments(id) {
+async function loadComments(id, pending) {
   const box = $("#comments");
   box.innerHTML = "";
   box.appendChild(commentGhostScreen(6));
   try {
-    const d = await getComments(id);
+    const d = await (pending || getCommentsFast(id));
+    if (!box.isConnected || (nav.abort && nav.abort.signal.aborted)) return;
     const head = $("#commentHead span");
     if (head) {
       const n = d.commentCount || (d.comments || []).length;
@@ -4860,7 +4938,7 @@ function shortItem(v) {
     document.querySelectorAll(".short").forEach((n) => { if (n !== s) n._active = false; });
     s._enrich();
     /* URL を /short/{videoId} に同期 */
-    if (id && location.pathname !== "/short/" + id) history.replaceState({}, "", "/short/" + id);
+    if (id && currentPath() !== "/short/" + id) history.replaceState({}, "", APP_FILE_MODE ? "/app.html#/short/" + id : "/short/" + id);
     document.title = (v.title ? v.title + " - " : "") + "ショート - NKYS Tube Pro";
     if (stage.querySelector("iframe") || stage.querySelector("video")) {
       const vid = stage.querySelector("video");
@@ -4949,6 +5027,16 @@ async function pageShorts(startId) {
 
   const box = el("div"); box.id = "shortsView";
   view().innerHTML = ""; view().appendChild(box);
+  const nextShort = el("button", "shorts-next", "↓");
+  nextShort.type = "button";
+  nextShort.setAttribute("aria-label", "次のショート");
+  nextShort.onclick = () => {
+    const nodes = Array.from(box.querySelectorAll(".short"));
+    const index = nodes.findIndex((n) => n.getBoundingClientRect().top >= -20);
+    const target = nodes[Math.min(nodes.length - 1, Math.max(index + 1, 1))];
+    if (target) target.scrollIntoView({behavior:"smooth",block:"start"});
+  };
+  view().appendChild(nextShort);
   const end = el("div", "shortsEnd", "読み込み中…");
 
   const io = new IntersectionObserver((es) => {
@@ -5649,8 +5737,7 @@ $("#setNocookieDefault").onchange = (e) => { S.settings.playerMode = e.target.ch
 
 /* 直接接続が最速のためプロキシは自動有効化しない（設定から手動で切替可能） */
 
-/* 起動時に急上昇をプリフェッチして体感速度を上げる */
-api("trending", "/api/v1/trending?region=" + RG() + "").catch(() => {});
+/* Personalized recommendations start with the visitor's own activity. */
 renderSubs();
 render();
 
@@ -5682,7 +5769,7 @@ render();
       n.classList.toggle("on", p === "/" ? path === "/" : path.indexOf(p) === 0);
     });
     document.body.classList.toggle("is-watch", /^\/watch/.test(path));
-    document.body.classList.toggle("is-shorts", /^\/shorts/.test(path));
+    document.body.classList.toggle("is-shorts", /^\/short(?:s|\/)/.test(path));
   }
 
   /* ---- Nocookie ミニプレーヤー ---- */
