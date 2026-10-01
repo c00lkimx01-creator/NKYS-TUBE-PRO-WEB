@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="ja">
 <head>
@@ -2073,18 +2072,22 @@ const pipedChannelId = (u) => {
 };
 /* Piped の item を Invidious 形式へ正規化 */
 function normPipedVideo(it) {
+  const duration = it.duration > 0 ? it.duration : 0;
+  const url = it.url || "";
+  // URLから/shorts/パターンを明確に検出
+  const isShortUrl = /youtube\.com\/shorts\/|\/shorts\//.test(url);
   return {
     type: "video",
-    videoId: pipedId(it.url),
+    videoId: pipedId(url),
     title: it.title,
     author: it.uploaderName,
     authorId: pipedChannelId(it.uploaderUrl),
     authorThumbnails: it.uploaderAvatar ? [{ url: it.uploaderAvatar }] : [],
-    lengthSeconds: it.duration > 0 ? it.duration : 0,
+    lengthSeconds: duration,
     viewCount: it.views > 0 ? it.views : 0,
     publishedText: it.uploadedDate || "",
-    isShort: !!it.isShort || (it.duration > 0 && it.duration <= 180 && /shorts/i.test(it.url || "")),
-    liveNow: !!it.isShort ? false : (it.duration <= 0 && it.views > 0),
+    isShort: (!!it.isShort || isShortUrl) && (duration === 0 || (duration > 0 && duration <= 180)),
+    liveNow: !!it.isShort ? false : (duration === 0 && it.views > 0),
   };
 }
 function normPipedChannel(it) {
@@ -2135,7 +2138,11 @@ const siaIcon = (it) => {
 /* siatube の item を Invidious 形式へ正規化 */
 function normSiaVideo(it) {
   const id = it.videoId || vidOf(it);
-  const short = /short/i.test(it.type || "") || /short/i.test(it.contentType || "");
+  const dur = siaDur(it.duration);
+  // 動画ID自体がshortsパターンか、またはtype/contentTypeでshortを明示
+  const isShortType = /short/i.test(it.type || "") || /short/i.test(it.contentType || "");
+  // 長さが180秒以下のみをShortと判定
+  const short = isShortType && dur > 0 && dur <= 180;
   return {
     type: "video",
     videoId: id,
@@ -2143,7 +2150,7 @@ function normSiaVideo(it) {
     author: it.channelName || it.author || "",
     authorId: it.channelId || it.authorId || "",
     authorThumbnails: siaIcon(it) ? [{ url: siaIcon(it) }] : [],
-    lengthSeconds: siaDur(it.duration),
+    lengthSeconds: dur,
     viewCount: siaNum(it.viewCounts || it.viewCount),
     publishedText: it.publishedTime || it.published || "",
     isShort: short,
@@ -2323,6 +2330,9 @@ function wkShortNorm(x) {
   if (!x) return null;
   const id = x.id || x.videoId;
   if (!id || !/^[\w-]{11}$/.test(id)) return null;
+  const lengthSeconds = x.lengthSeconds || 0;
+  // Sennin-Tube-Plus-v2の方法に従い: 長さが180秒以下のみをShortとして返す
+  if (lengthSeconds > 0 && lengthSeconds > 180) return null;
   const th = ((x.videoThumbnails || []).map((t) => t && t.url).filter(Boolean)[0]) || x.thumbnail || "";
   return {
     videoId: id,
@@ -2330,7 +2340,7 @@ function wkShortNorm(x) {
     author: x.author || "",
     authorId: x.authorId || "",
     authorThumbnails: x.authorThumbnails || [],
-    lengthSeconds: x.lengthSeconds || 0,
+    lengthSeconds: lengthSeconds,
     viewCount: x.viewCount || 0,
     isShort: true,
     __thumb: th,
@@ -2399,7 +2409,7 @@ function wkChannelVideos(d) {
       viewCount: it.viewCount || it.views || 0,
       published: it.published || 0,
       publishedText: it.publishedText || it.uploadedDate || "",
-      isShort: !!it.isShort || /short/i.test(String(it.type || "")),
+      isShort: (!!it.isShort || /short/i.test(String(it.type || ""))) && ((it.lengthSeconds || it.duration || 0) > 0 && (it.lengthSeconds || it.duration || 0) <= 180),
       __thumb: th,
     };
   }).filter(Boolean);
@@ -2410,7 +2420,14 @@ async function wkChannelTab(cid, tab, sort, signal) {
 }
 /* チャンネルのショート (tab=shorts) */
 async function wkChannelShorts(cid, sort, signal) {
-  return (await wkChannelTab(cid, "shorts", sort, signal)).map((v) => { v.isShort = true; return v; });
+  try {
+    const videos = await wkChannelTab(cid, "shorts", sort, signal);
+    return (Array.isArray(videos) ? videos : [])
+      .filter((v) => v && v.videoId && v.lengthSeconds > 0 && v.lengthSeconds <= 180)
+      .map((v) => { v.isShort = true; return v; });
+  } catch (_) {
+    return [];
+  }
 }
 /* チャンネルの再生リスト (tab=playlists) */
 async function wkChannelPlaylists(cid, sort, signal) {
@@ -2541,6 +2558,8 @@ async function nivVideo(id, signal) {
 function nivShortNorm(x) {
   const v = nivNormVideo(x);
   if (!v) return null;
+  // Sennin-Tube-Plus-v2の方法に従い: 長さが180秒以下のみをShortとして返す
+  if (v.lengthSeconds > 0 && v.lengthSeconds > 180) return null;
   v.isShort = true;
   if (x.embedUrl) v.__embedUrl = x.embedUrl;
   return v;
@@ -2588,7 +2607,7 @@ function vidOf(v) {
   }
   return "";
 }
-const isShortVid = (v) => !!v.isShort || (v.lengthSeconds > 0 && v.lengthSeconds <= 180);
+const isShortVid = (v) => !!v && !!v.isShort && (v.lengthSeconds > 0 && v.lengthSeconds <= 180);
 /* ライブ判定: Invidious は liveNow / Piped は duration<=0 かつ views あり */
 /* 配信終了済み（再生時間が確定している）動画はLIVEと表示しない */
 const isLive = (v) => {
@@ -4481,7 +4500,7 @@ async function fetchSubsShorts(signal, perCh) {
       const arr = r.value.relatedStreams || r.value.content || r.value.items || [];
       (Array.isArray(arr) ? arr : []).forEach((it) => items.push(normPipedVideo(it)));
     });
-    return items.filter((v) => v.videoId && (v.isShort || (v.lengthSeconds > 0 && v.lengthSeconds <= 180)));
+    return items.filter((v) => v && v.videoId && v.isShort && v.lengthSeconds > 0 && v.lengthSeconds <= 180);
   }));
   const out = [];
   res.forEach((r) => {
@@ -4499,7 +4518,7 @@ async function fetchSubsShorts(signal, perCh) {
 /* ホームのショート棚: 登録チャンネル + 検索履歴のショートを主に表示し、
    登録が空 / 取得できない場合はトレンドのショートで埋める */
 function isShortish(v) {
-  return !!(v && (v.isShort || (v.lengthSeconds > 0 && v.lengthSeconds <= 180)));
+  return !!(v && v.isShort && v.lengthSeconds && v.lengthSeconds > 0 && v.lengthSeconds <= 180);
 }
 /* 検索履歴クエリからショートを集める */
 async function fetchHistoryShorts(signal, page) {
