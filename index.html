@@ -1,3 +1,5 @@
+
+
 <!doctype html>
 <html lang="ja">
 <head>
@@ -2423,7 +2425,7 @@ async function wkChannelShorts(cid, sort, signal) {
   try {
     const videos = await wkChannelTab(cid, "shorts", sort, signal);
     return (Array.isArray(videos) ? videos : [])
-      .filter((v) => v && v.videoId && v.lengthSeconds > 0 && v.lengthSeconds <= 180)
+      .filter((v) => v && v.videoId && !(v.lengthSeconds > 180))
       .map((v) => { v.isShort = true; return v; });
   } catch (_) {
     return [];
@@ -3211,6 +3213,7 @@ async function searchChannels(q, signal) {
   return merged;
 }
 /* ショート検索: 複数ソース + 複数ページを合成して表示量を大幅に増やす */
+const searchShortsPipedNext = new Map();
 async function searchShorts(q, signal, page) {
   page = page || 1;
   const out = [], seen = new Set();
@@ -3222,9 +3225,29 @@ async function searchShorts(q, signal, page) {
   const path = "/api/v1/search?q=" + encodeURIComponent(q + " shorts") + "&page=" + page;
   const addApiShorts = (d) => (Array.isArray(d) ? d : (d.results || d.items || []))
     .map(nivNormVideo).filter(Boolean).forEach((v) => { v.isShort = true; push(v); });
+  const pipedKey = "sq:" + q;
+  const pipedNextTok = searchShortsPipedNext.get(pipedKey);
+  const addPiped = (d) => {
+    searchShortsPipedNext.set(pipedKey, (d && d.nextpage) || null);
+    ((d && (d.items || d.content)) || []).filter((it) => /stream|video/i.test(it.type || "stream"))
+      .map(normPipedVideo).filter((v) => v.videoId && (v.isShort || (v.lengthSeconds > 0 && v.lengthSeconds <= 180)))
+      .forEach((v) => { v.isShort = true; v.__src = "piped"; push(v); });
+  };
+  const pipedJob = page <= 1
+    ? pipedGet("/search?q=" + encodeURIComponent(q + " #shorts") + "&filter=videos", signal).then(addPiped)
+    : (pipedNextTok
+      ? pipedGet("/nextpage/search?q=" + encodeURIComponent(q + " #shorts") + "&filter=videos&nextpage=" + encodeURIComponent(pipedNextTok), signal).then(addPiped)
+      : Promise.resolve());
+  const addInvShorts = (d) => (Array.isArray(d) ? d : (d.results || d.items || []))
+    .map(nivNormVideo).filter((v) => v && !(v.lengthSeconds > 180)).forEach((v) => { v.isShort = true; push(v); });
   const jobs = [
     wkGet(path, signal).then(addApiShorts).catch(() => {}),
     nivGet(path, signal).then(addApiShorts).catch(() => {}),
+    /* Piped API */
+    pipedJob.catch(() => {}),
+    /* Invidious API（インスタンスプール） */
+    api("search", "/api/v1/search?q=" + encodeURIComponent(q + " shorts") + "&type=video&duration=short&page=" + page, { signal })
+      .then(addInvShorts).catch(() => {}),
     siaSearch(q + " shorts", signal)
       .then((items) => items.filter((i) => /video|short|stream/i.test(i.type || "video"))
         .map(normSiaVideo).forEach((v) => { v.isShort = true; push(v); }))
@@ -3920,17 +3943,127 @@ async function fetchChannelLive(cid, signal) {
   return out;
 }
 
+/* ===== チャンネル無限スクロール用ページャー =====
+   Worker → Invidious → Piped の順に1ページ目を取得し、成功したソースの
+   continuation / nextpage で続きを読み込む。sort: new|pop|old            */
+const INV_SORT = { new: "newest", pop: "popular", old: "oldest" };
+function chPickList(d) {
+  if (Array.isArray(d)) return d;
+  return (d && (d.videos || d.contents || d.content || d.relatedStreams || d.items || d.latestVideos)) || [];
+}
+function chNormList(d, isShortTab) {
+  const out = [];
+  chPickList(d).forEach((it) => {
+    if (!it || typeof it !== "object") return;
+    let v;
+    if (it.url && !it.videoId && /watch|shorts/.test(it.url)) v = normPipedVideo(it);
+    else v = (wkChannelVideos({ contents: [it] })[0]) || nivNormVideo(it);
+    if (!v || !v.videoId) return;
+    if (isShortTab) {
+      /* Shortsタブでも長い動画が混ざることがあるので、長さが分かるものは3分超を除外 */
+      const d = v.lengthSeconds || 0;
+      if (d > 180) return;
+      v.isShort = true;
+    }
+    out.push(v);
+  });
+  return out;
+}
+function makeChannelPager(cid, tab, sort) {
+  const isShort = tab === "shorts";
+  const seen = new Set();
+  let src = null, token = null, done = false, pipedTab = null, busy = null;
+  const enc = encodeURIComponent;
+  const invPath = (c) => "/api/v1/channels/" + enc(cid) + "/" + tab + "?sort_by=" + (INV_SORT[sort] || "newest") + (c ? "&continuation=" + enc(c) : "");
+  const wkPath = (c) => "/api/v1/channels/" + enc(cid) + "?tab=" + tab + "&sort=" + (WK_SORT[sort] || "latest") + (c ? "&continuation=" + enc(c) : "");
+  const tokOf = (d) => d && (d.continuation || d.nextpage || d.nextPage || d.next || null);
+  async function pipedFirst(signal) {
+    if (!isShort) {
+      const d = await pipedGet("/channel/" + enc(cid), signal);
+      return { list: (d.relatedStreams || []).map(normPipedVideo), tok: d.nextpage || null };
+    }
+    let data = null;
+    try {
+      const c = await pipedGet("/channel/" + enc(cid), signal);
+      const t = (c.tabs || []).find((x) => /shorts/i.test(x.name || ""));
+      if (t) data = t.data;
+    } catch (_) {}
+    if (!data) data = JSON.stringify({ id: cid, tab: "shorts" });
+    pipedTab = data;
+    const d = await pipedGet("/channels/tabs?data=" + enc(data), signal);
+    return { list: (d.content || []).map(normPipedVideo), tok: d.nextpage || null };
+  }
+  async function pipedNext(signal) {
+    if (!isShort) {
+      const d = await pipedGet("/nextpage/channel/" + enc(cid) + "?nextpage=" + enc(token), signal);
+      return { list: (d.relatedStreams || []).map(normPipedVideo), tok: d.nextpage || null };
+    }
+    const d = await pipedGet("/channels/tabs?data=" + enc(pipedTab) + "&nextpage=" + enc(token), signal);
+    return { list: (d.content || []).map(normPipedVideo), tok: d.nextpage || null };
+  }
+  async function first(signal) {
+    const tries = [
+      ["worker", async () => { const d = await wkChannel(cid, signal, tab, sort); return { list: chNormList(d, isShort), tok: tokOf(d) }; }],
+      ["inv", async () => { const d = await api("channel", invPath(""), { signal }); return { list: chNormList(d, isShort), tok: tokOf(d) }; }],
+      ["piped", () => pipedFirst(signal)],
+    ];
+    for (const [name, fn] of tries) {
+      try {
+        const r = await fn();
+        if (r && r.list && r.list.length) { src = name; return r; }
+      } catch (e) { if (isAbort(e)) throw e; }
+    }
+    return { list: [], tok: null };
+  }
+  async function more(signal) {
+    if (src === "worker") {
+      try { const d = await wkGet(wkPath(token), signal); return { list: chNormList(d, isShort), tok: tokOf(d) }; }
+      catch (e) { if (isAbort(e)) throw e; }
+      /* Worker の continuation は Invidious でも同じ YouTube トークンなので流用 */
+      const d = await api("channel", invPath(token), { signal }); src = "inv";
+      return { list: chNormList(d, isShort), tok: tokOf(d) };
+    }
+    if (src === "inv") { const d = await api("channel", invPath(token), { signal }); return { list: chNormList(d, isShort), tok: tokOf(d) }; }
+    return pipedNext(signal);
+  }
+  return {
+    get done() { return done; },
+    next(signal) {
+      if (done) return Promise.resolve([]);
+      if (busy) return busy;
+      busy = (async () => {
+        let r;
+        try { r = src ? await more(signal) : await first(signal); }
+        catch (e) { if (isAbort(e)) throw e; r = { list: [], tok: null }; }
+        token = r.tok || null;
+        const fresh = [];
+        r.list.forEach((v) => { if (!seen.has(v.videoId)) { seen.add(v.videoId); fresh.push(v); } });
+        if (!token || (!fresh.length && r.list.length === 0)) done = true;
+        /* Piped はソート非対応なので手元で並べ替え */
+        if (src === "piped" && sort !== "new") {
+          fresh.sort((a, b) => sort === "pop" ? (b.viewCount || 0) - (a.viewCount || 0) : (a.published || 0) - (b.published || 0));
+        }
+        return fresh;
+      })().finally(() => { busy = null; });
+      return busy;
+    },
+  };
+}
+
 async function fetchChannelShorts(cid, fallbackVideos, signal, sort) {
   const out = [], seen = new Set();
   const push = (v) => {
     const id = vidOf(v);
     if (!id || seen.has(id)) return;
+    /* 長さが分かる動画は3分超をShort扱いしない */
+    const d = v.lengthSeconds || 0;
+    if (d > 180) return;
     seen.add(id); v.videoId = id; v.isShort = true; out.push(v);
   };
   /* Worker API: /api/v1/channels/{cid}?tab=shorts&sort=latest を最優先 */
   try { (await wkChannelShorts(cid, sort || "latest", signal)).forEach(push); } catch (_) {}
   try {
-    const d = await api("channel", "/api/v1/channels/" + cid + "/shorts", { signal });
+    const d = await api("channel", "/api/v1/channels/" + cid + "/shorts?sort_by=" + (INV_SORT[sort] || "newest"), { signal });
     (d.videos || d || []).forEach(push);
   } catch (_) {}
   if (!out.length) {
@@ -3973,8 +4106,10 @@ function siaChannelShorts(d) {
   const seen = new Set(), out = [];
   const raw = (d.shorts || []).concat(siaChannelItems(d).filter((i) => /short/i.test(i.type || "") || /short/i.test(i.contentType || "")));
   raw.forEach((i) => {
-    const v = normSiaVideo(i); v.isShort = true;
-    if (!v.videoId || seen.has(v.videoId)) return;
+    const v = normSiaVideo(i);
+    if (!v || !v.videoId || seen.has(v.videoId)) return;
+    if ((v.lengthSeconds || 0) > 180) return;
+    v.isShort = true;
     seen.add(v.videoId); out.push(v);
   });
   return out;
@@ -4276,6 +4411,8 @@ async function pageChannel(cid) {
   };
 
   const shortsBySort = new Map();
+  const chPagers = new Map();
+  let chIO = null, tabToken = 0;
   let liveCache = null;
   const allSection = (title, tab, content) => {
     const section = el("section", "chAllSection");
@@ -4287,6 +4424,8 @@ async function pageChannel(cid) {
     return section;
   };
   const showTab = async (tab) => {
+    tabToken++;
+    if (chIO) { chIO.disconnect(); chIO = null; }
     document.querySelectorAll(".chTab").forEach((t) => t.classList.toggle("on", t.dataset.tab === tab));
     const srow = $("#chSearchInline");
     if (srow) srow.classList.toggle("on", tab === "search");
@@ -4333,35 +4472,57 @@ async function pageChannel(cid) {
       if (!liveCache) liveCache = await fetchChannelLive(cid, nav.abort && nav.abort.signal).catch(() => []);
       if (liveCache.length) body.appendChild(allSection("ライブ", "live", renderGrid(sortVideos(liveCache).slice(0, 4))));
       if (!allVideos.length && !allShorts.length && !liveCache.length) body.appendChild(el("div", "empty", "コンテンツはありません"));
-    } else if (tab === "videos") {
-      let sortedVideos = channelVideosBySort.get(sortMode);
-      if (!sortedVideos) {
-        const ghost = channelTabGhost("videos");
-        body.appendChild(ghost);
-        sortedVideos = await wkChannelTab(cid, "videos", sortMode, nav.abort && nav.abort.signal);
-        ghost.remove();
-        if (!sortedVideos.length) sortedVideos = sortVideos(allVideos);
-        channelVideosBySort.set(sortMode, sortedVideos);
-      }
-      allVideos = sortedVideos;
-      const feat = channelFeatured(allVideos, ch);
-      if (feat) body.appendChild(feat);
-      body.appendChild(sortBar(() => showTab("videos")));
-      body.appendChild(renderGrid(allVideos));
-    } else if (tab === "shorts") {
-      body.appendChild(sortBar(() => showTab("shorts")));
-      const holder = el("div", "shortsGrid");
+    } else if (tab === "videos" || tab === "shorts") {
+      const isS = tab === "shorts";
+      body.appendChild(sortBar(() => showTab(tab)));
+      const key = tab + ":" + sortMode;
+      let st = chPagers.get(key);
+      if (!st) { st = { pager: makeChannelPager(cid, tab, sortMode), items: [] }; chPagers.set(key, st); }
+      const holder = el("div", isS ? "shortsGrid" : "grid");
       body.appendChild(holder);
-      let shortsCache = shortsBySort.get(sortMode);
-      if (!shortsCache) {
-        const ghost = channelTabGhost("shorts");
-        body.appendChild(ghost);
-        shortsCache = await fetchChannelShorts(cid, allVideos, nav.abort && nav.abort.signal, sortMode);
-        shortsBySort.set(sortMode, shortsCache);
+      const sentinel = el("div", "shortsEnd", "");
+      body.appendChild(sentinel);
+      const myToken = ++tabToken;
+      let idx = 0;
+      const append = (list) => list.forEach((v) => holder.appendChild(isS ? shortCard(v) : videoCard(v, undefined, idx++)));
+      const signal = nav.abort && nav.abort.signal;
+      const loadMore = async () => {
+        if (st.pager.done || myToken !== tabToken) return;
+        sentinel.innerHTML = '<div class="spinner"></div>';
+        sentinel.textContent = "読み込み中…";
+        let list = [];
+        try { list = await st.pager.next(signal); } catch (_) { return; }
+        if (myToken !== tabToken) return;
+        st.items.push(...list);
+        append(list);
+        if (st.pager.done) {
+          if (chIO) { chIO.disconnect(); chIO = null; }
+          sentinel.textContent = st.items.length ? "" : "";
+        } else sentinel.textContent = "";
+        /* 画面が埋まらない場合は続けて読み込む */
+        if (!st.pager.done && sentinel.getBoundingClientRect().top < innerHeight + 600) loadMore();
+      };
+      if (st.items.length) append(st.items);
+      else {
+        const ghost = channelTabGhost(tab);
+        body.insertBefore(ghost, sentinel);
+        await loadMore();
         ghost.remove();
+        if (myToken !== tabToken) return;
+        if (!st.items.length) {
+          /* 全ソース失敗時は従来経路にフォールバック */
+          const fb = isS ? await fetchChannelShorts(cid, allVideos, signal, sortMode).catch(() => [])
+                         : sortVideos(allVideos);
+          if (!fb.length) { holder.replaceWith(el("div", "empty", isS ? "ショートはありません" : "動画はありません")); return; }
+          st.items = fb; append(fb);
+        }
       }
-      if (!shortsCache.length) { body.appendChild(el("div", "empty", "ショートはありません")); return; }
-      shortsCache.forEach((v) => holder.appendChild(shortCard(v)));
+      if (!isS && st.items.length) allVideos = st.items.slice();
+      if (!st.pager.done) {
+        if (chIO) chIO.disconnect();
+        chIO = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadMore(); }, { rootMargin: "800px" });
+        chIO.observe(sentinel);
+      }
     } else if (tab === "live") {
       body.appendChild(sortBar(() => showTab("live")));
       if (!liveCache) {
