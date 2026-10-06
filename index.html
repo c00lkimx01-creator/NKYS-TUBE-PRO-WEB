@@ -1544,6 +1544,16 @@ document.documentElement.dataset.theme = S.settings.theme;
 const $ = (s, r) => (r || document).querySelector(s);
 const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+/* APIレスポンスから配列部分を取り出す（配列 / {results} / {items} のどれでも） */
+const rows = (d) => (Array.isArray(d) ? d : ((d && (d.results || d.items)) || []));
+/* Promise を {status,value|reason} に変換して保持する */
+const track = (p, set) => p.then((v) => set({ status: "fulfilled", value: v })).catch((e) => set({ status: "rejected", reason: e }));
+/* 全ジョブ完了・最初の成功+1.5秒・12秒のいずれか早い方で打ち切る */
+const firstPlus = (jobs) => Promise.race([
+  Promise.allSettled(jobs),
+  Promise.race(jobs.map((j) => j.catch(() => {}))).then(() => new Promise((r) => setTimeout(r, 1500))),
+  new Promise((r) => setTimeout(r, 12000)),
+]);
 /* 概要欄のURLとハッシュタグを、安全なリンクとして表示する */
 function descriptionHtml(text) {
   const source = String(text == null ? "" : text);
@@ -2338,22 +2348,6 @@ function qsPath(path) {
 async function wkGet(path, signal, ms) {
   return qsGet(qsPath(path), signal, ms);
 }
-async function wkGet0(path, signal, ms) {
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), ms || 9000);
-  const onAbort = () => ac.abort();
-  if (signal) { if (signal.aborted) ac.abort(); else signal.addEventListener("abort", onAbort); }
-  try {
-    const r = await fetch(QS_API + path, { signal: ac.signal, headers: { accept: "application/json" } });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const d = await r.json();
-    if (d && d.error) throw new Error(String(d.error));
-    return d;
-  } finally {
-    clearTimeout(t);
-    if (signal) { try { signal.removeEventListener("abort", onAbort); } catch (_) {} }
-  }
-}
 /* ---------- quiet-salad Worker API（ショート取得 / ショート検索で最優先） ----------
    /api/v1/shorts , /api/v1/shorts?more=N , /api/v1/shorts/{id}
    /api/v1/search?q=&more=N , /api/v1/videos/{id} , /api/v1/channels/{id} , /api/v1/comments/{id} */
@@ -2899,27 +2893,16 @@ async function homeFeed(chip, signal) {
   const pipedPath = q
     ? "/search?q=" + encodeURIComponent(q) + "&filter=videos"
     : "/trending?region=" + RG();
-  let pipedResult = null, ytaResult = null, nivResult = null;
-  /* HOME トレンドは invidiousapi の /api/v1/trends を最速ソースとして併走 */
-  const t0 = (q ? Promise.reject(new Error("skip")) : nivTrends(signal))
-    .then((v) => { nivResult = { status: "fulfilled", value: v }; })
-    .catch((e) => { nivResult = { status: "rejected", reason: e }; });
-  const t1 = pipedGet(pipedPath, signal)
-    .then((v) => { pipedResult = { status: "fulfilled", value: v }; })
-    .catch((e) => { pipedResult = { status: "rejected", reason: e }; });
-  const t2 = (q ? ytaSearch(q, signal) : ytaTrend(signal))
-    .then((v) => { ytaResult = { status: "fulfilled", value: v }; })
-    .catch((e) => { ytaResult = { status: "rejected", reason: e }; });
-  /* Worker API の急上昇 /api/v1/trending も併走（失敗しても他ソースで表示） */
-  let wkResult = null;
-  const t3 = (q ? Promise.resolve([]) : wkTrending(signal))
-    .then((v) => { wkResult = { status: "fulfilled", value: v }; })
-    .catch((e) => { wkResult = { status: "rejected", reason: e }; });
-  await Promise.race([
-    Promise.all([t0, t1, t2, t3]),
-    Promise.race([t0, t1, t2, t3]).then(() => new Promise((r) => setTimeout(r, 1500))),
-    new Promise((r) => setTimeout(r, 12000)),
-  ]);
+  let pipedResult = null, ytaResult = null, nivResult = null, wkResult = null;
+  /* HOME トレンドは invidiousapi の /api/v1/trends を最速ソースとして併走。
+     Worker API の急上昇 /api/v1/trending も併走（失敗しても他ソースで表示） */
+  const jobs = [
+    track(q ? Promise.reject(new Error("skip")) : nivTrends(signal), (r) => { nivResult = r; }),
+    track(pipedGet(pipedPath, signal), (r) => { pipedResult = r; }),
+    track(q ? ytaSearch(q, signal) : ytaTrend(signal), (r) => { ytaResult = r; }),
+    track(q ? Promise.resolve([]) : wkTrending(signal), (r) => { wkResult = r; }),
+  ];
+  await firstPlus(jobs);
   if (signal && signal.aborted) throw Object.assign(new Error("aborted"), { name: "AbortError" });
   const merged = [], seen = new Set();
   const add = (v) => {
@@ -3264,21 +3247,17 @@ async function searchVideos(q, page, signal) {
   const invPath = "/api/v1/search?q=" + encodeURIComponent(q) + "&type=video&region=" + RG() + "&page=" + page;
   const jobs = [
     wkGet(invPath, signal)
-      .then((d) => (Array.isArray(d) ? d : (d.results || d.items || [])).map(nivNormVideo).filter(Boolean).forEach(push))
+      .then((d) => rows(d).map(nivNormVideo).filter(Boolean).forEach(push))
       .catch((e) => { if (isAbort(e)) throw e; }),
     nivGet(invPath, signal)
-      .then((d) => (Array.isArray(d) ? d : (d.results || d.items || [])).map(nivNormVideo).filter(Boolean).forEach(push))
+      .then((d) => rows(d).map(nivNormVideo).filter(Boolean).forEach(push))
       .catch((e) => { if (isAbort(e)) throw e; }),
     siaSearch(q, signal)
       .then((items) => items.filter((i) => /video|short|stream/i.test(i.type || "video")).map(normSiaVideo).forEach(push))
       .catch(() => {}),
   ];
   /* 最初のソースが返った時点＋1.5秒で打ち切り、遅いソースを待たない */
-  await Promise.race([
-    Promise.allSettled(jobs),
-    Promise.race(jobs.map((j) => j.catch(() => {}))).then(() => new Promise((r) => setTimeout(r, 1500))),
-    new Promise((r) => setTimeout(r, 12000)),
-  ]);
+  await firstPlus(jobs);
   if (signal && signal.aborted) throw Object.assign(new Error("aborted"), { name: "AbortError" });
   return out;
 }
@@ -3287,8 +3266,8 @@ async function searchChannels(q, signal) {
   const push = (c) => { if (c && c.authorId && !seen.has(c.authorId)) { seen.add(c.authorId); merged.push(c); } };
   const path = "/api/v1/search?q=" + encodeURIComponent(q) + "&type=channel";
   await Promise.allSettled([
-    wkGet(path, signal).then((d) => (Array.isArray(d) ? d : (d.results || d.items || [])).forEach(push)).catch(() => {}),
-    nivGet(path, signal).then((d) => (Array.isArray(d) ? d : (d.results || d.items || [])).forEach(push)).catch(() => {}),
+    wkGet(path, signal).then((d) => rows(d).forEach(push)).catch(() => {}),
+    nivGet(path, signal).then((d) => rows(d).forEach(push)).catch(() => {}),
     siaSearch(q, signal)
       .then((items) => items.filter((i) => /channel/i.test(i.type || "")).map(normSiaChannel).forEach(push)).catch(() => {}),
   ]);
@@ -3305,7 +3284,7 @@ async function searchShorts(q, signal, page) {
     seen.add(id); v.videoId = id; out.push(v);
   };
   const path = "/api/v1/search?q=" + encodeURIComponent(q + " shorts") + "&page=" + page;
-  const addApiShorts = (d) => (Array.isArray(d) ? d : (d.results || d.items || []))
+  const addApiShorts = (d) => rows(d)
     .map(nivNormVideo).filter(Boolean).forEach((v) => { v.isShort = true; push(v); });
   const pipedKey = "sq:" + q;
   const pipedNextTok = searchShortsPipedNext.get(pipedKey);
@@ -3320,7 +3299,7 @@ async function searchShorts(q, signal, page) {
     : (pipedNextTok
       ? pipedGet("/nextpage/search?q=" + encodeURIComponent(q + " #shorts") + "&filter=videos&nextpage=" + encodeURIComponent(pipedNextTok), signal).then(addPiped)
       : Promise.resolve());
-  const addInvShorts = (d) => (Array.isArray(d) ? d : (d.results || d.items || []))
+  const addInvShorts = (d) => rows(d)
     .map(nivNormVideo).filter((v) => v && !(v.lengthSeconds > 180)).forEach((v) => { v.isShort = true; push(v); });
   /* quiet-salad を最優先: 先に結果を push してから他ソースを統合 */
   await qsSearch(q, signal, page - 1)
