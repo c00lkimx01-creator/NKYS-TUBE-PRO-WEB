@@ -14,6 +14,7 @@
 <meta name="twitter:card" content="summary_large_image" />
 <link rel="icon" type="image/png" href="/favicon.png" />
 <!-- 動画表示を高速化するための事前接続 -->
+<link rel="preconnect" href="https://quiet-salad-6130.c00lkimx01.workers.dev" crossorigin />
 <link rel="preconnect" href="https://dark-sun-c226.c00lkimx01.workers.dev" crossorigin />
 <link rel="dns-prefetch" href="https://dark-sun-c226.c00lkimx01.workers.dev" />
 <link rel="preconnect" href="https://api.piped.private.coffee" crossorigin />
@@ -2313,6 +2314,13 @@ async function ytaVideo(id, signal) {
    /api/v1/channels/{channelID} : チャンネル情報と動画一覧
    いずれも失敗しても既存の取得経路にフォールバックする(表示は壊さない)     */
 async function wkGet(path, signal, ms) {
+  if (/^\/api\/v1\/channels\//.test(path)) {
+    try { return await wkGet0(path, signal, ms); }
+    catch (e) { if (signal && signal.aborted) throw e; return qsGet(path, signal, ms); }
+  }
+  return wkGet0(path, signal, ms);
+}
+async function wkGet0(path, signal, ms) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), ms || 9000);
   const onAbort = () => ac.abort();
@@ -2327,6 +2335,54 @@ async function wkGet(path, signal, ms) {
     clearTimeout(t);
     if (signal) { try { signal.removeEventListener("abort", onAbort); } catch (_) {} }
   }
+}
+/* ---------- quiet-salad Worker API（ショート取得 / ショート検索で最優先） ----------
+   /api/v1/shorts , /api/v1/shorts?more=N , /api/v1/shorts/{id}
+   /api/v1/search?q=&more=N , /api/v1/videos/{id} , /api/v1/channels/{id} , /api/v1/comments/{id} */
+const QS_API = "https://quiet-salad-6130.c00lkimx01.workers.dev";
+async function qsGet(path, signal, ms) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), ms || 9000);
+  const onAbort = () => ac.abort();
+  if (signal) { if (signal.aborted) ac.abort(); else signal.addEventListener("abort", onAbort); }
+  try {
+    const r = await fetch(QS_API + path, { signal: ac.signal, headers: { accept: "application/json" } });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    if (d && d.error) throw new Error(String(d.error));
+    return d;
+  } finally {
+    clearTimeout(t);
+    if (signal) { try { signal.removeEventListener("abort", onAbort); } catch (_) {} }
+  }
+}
+function qsNorm(x, short) {
+  if (!x) return null;
+  const id = x.videoId || x.id;
+  if (!id || !/^[\w-]{11}$/.test(id)) return null;
+  const th = ((x.thumbnails || x.videoThumbnails || []).map((t) => t && t.url).filter(Boolean).slice(-1)[0]) || "";
+  const vc = Number(x.viewCount) || 0;
+  return {
+    type: "video", videoId: id, title: x.title || "", author: x.author || "", authorId: x.authorId || "",
+    authorThumbnails: x.authorThumbnails || [], lengthSeconds: Number(x.lengthSeconds) || 0,
+    viewCount: vc, viewCountText: x.viewCountText || "", publishedText: x.publishedText || "",
+    isShort: !!short || x.type === "short", __thumb: th, __src: "qs",
+  };
+}
+const qsShortsMore = { n: 0 };
+async function qsShorts(id, signal) {
+  if (id) {
+    const d = await qsGet("/api/v1/shorts/" + encodeURIComponent(id), signal);
+    const seq = [].concat(d.next || [], (d.related || []).filter((x) => x.type === "short"));
+    return { current: qsNorm(d, true), sequence: seq.map((x) => qsNorm(x, true)).filter(Boolean) };
+  }
+  const m = qsShortsMore.n++;
+  const d = await qsGet("/api/v1/shorts" + (m ? "?more=" + m : ""), signal);
+  return { current: null, sequence: (d.shorts || []).map((x) => qsNorm(x, true)).filter(Boolean) };
+}
+async function qsSearch(q, signal, more) {
+  const d = await qsGet("/api/v1/search?q=" + encodeURIComponent(q) + (more ? "&more=" + more : ""), signal);
+  return (d.results || []).map((x) => qsNorm(x)).filter(Boolean);
 }
 function wkShortNorm(x) {
   if (!x) return null;
@@ -2362,13 +2418,16 @@ async function wkShorts(id, signal) {
 /* 関連ショートを配列で返す(重複除去つき) */
 async function wkRelatedShorts(id, signal, withCurrent) {
   /* Worker と invidiousapi の両方に投げ、先に届いた方（両方届けば統合）を使う */
-  const [a, b] = await Promise.allSettled([
-    wkShorts(id || "", signal),
+  const [q, a, b] = await Promise.allSettled([
+    qsShorts(id || "", signal),
+    /* dark-* Worker からはショートを取得しない */
+    Promise.reject(new Error("skip")),
     id ? nivShorts(id, signal) : Promise.reject(new Error("skip")),
   ]);
   const r = {
-    current: (a.status === "fulfilled" && a.value.current) || (b.status === "fulfilled" && b.value.current) || null,
+    current: (q.status === "fulfilled" && q.value.current) || (a.status === "fulfilled" && a.value.current) || (b.status === "fulfilled" && b.value.current) || null,
     sequence: []
+      .concat(q.status === "fulfilled" ? q.value.sequence || [] : [])
       .concat(a.status === "fulfilled" ? a.value.sequence || [] : [])
       .concat(b.status === "fulfilled" ? b.value.sequence || [] : []),
   };
@@ -2376,7 +2435,7 @@ async function wkRelatedShorts(id, signal, withCurrent) {
   const src = (withCurrent && r.current ? [r.current] : []).concat(r.sequence || []);
   const out = [];
   src.forEach((v) => {
-    if (!v || shortsSeen.has(v.videoId)) return;
+    if (!v || shortsSeen.has(v.videoId) || notShort(v)) return;
     shortsSeen.add(v.videoId);
     out.push(v);
   });
@@ -2422,6 +2481,8 @@ async function wkChannelTab(cid, tab, sort, signal) {
 }
 /* チャンネルのショート (tab=shorts) */
 async function wkChannelShorts(cid, sort, signal) {
+  /* dark-* Worker からはショートを取得しない */
+  return [];
   try {
     const videos = await wkChannelTab(cid, "shorts", sort, signal);
     return (Array.isArray(videos) ? videos : [])
@@ -2467,7 +2528,8 @@ async function wkTrending(signal) {
 }
 /* 動画メタ情報: /api/v1/videos/{videoID} */
 async function wkVideo(id, signal) {
-  const d = await wkGet("/api/v1/videos/" + encodeURIComponent(id), signal);
+  let d = await wkGet("/api/v1/videos/" + encodeURIComponent(id), signal).catch(() => null);
+  if (!d || !(d.videoId || d.title)) d = await qsGet("/api/v1/videos/" + encodeURIComponent(id), signal).catch(() => null);
   if (!d || !(d.videoId || d.title)) throw new Error("worker video empty");
   d.videoId = d.videoId || id;
   d.__src = "worker";
@@ -2475,7 +2537,8 @@ async function wkVideo(id, signal) {
 }
 /* コメント: /api/v1/comments/{videoID} */
 async function wkComments(id, signal) {
-  const d = await wkGet("/api/v1/comments/" + encodeURIComponent(id), signal);
+  let d = await wkGet("/api/v1/comments/" + encodeURIComponent(id), signal).catch(() => null);
+  if (!d || !Array.isArray(d.comments)) d = await qsGet("/api/v1/comments/" + encodeURIComponent(id), signal).catch(() => null);
   if (!d || !Array.isArray(d.comments)) throw new Error("worker comments empty");
   return { commentCount: d.commentCount || d.comments.length, comments: d.comments, continuation: d.continuation };
 }
@@ -2610,6 +2673,8 @@ function vidOf(v) {
   return "";
 }
 const isShortVid = (v) => !!v && !!v.isShort && (v.lengthSeconds > 0 && v.lengthSeconds <= 180);
+/* 明らかにショートではない動画（180秒超 / ライブ・配信予定）を排除する共通判定 */
+const notShort = (v) => !!v && (v.lengthSeconds > 180 || isLive(v));
 /* ライブ判定: Invidious は liveNow / Piped は duration<=0 かつ views あり */
 /* 配信終了済み（再生時間が確定している）動画はLIVEと表示しない */
 const isLive = (v) => {
@@ -2958,7 +3023,7 @@ async function pageHome() {
     (list || []).forEach((v) => {
       if (max && added >= max) return;
       const id = vidOf(v);
-      if (!id || shSeen.has(id)) return;
+      if (!id || shSeen.has(id) || notShort(v)) return;
       shSeen.add(id); v.videoId = id; v.isShort = true;
       shortShelf.appendChild(shortCard(v));
       added++;
@@ -3219,7 +3284,7 @@ async function searchShorts(q, signal, page) {
   const out = [], seen = new Set();
   const push = (v) => {
     const id = vidOf(v);
-    if (!id || seen.has(id)) return;
+    if (!id || seen.has(id) || notShort(v)) return;
     seen.add(id); v.videoId = id; out.push(v);
   };
   const path = "/api/v1/search?q=" + encodeURIComponent(q + " shorts") + "&page=" + page;
@@ -3240,8 +3305,11 @@ async function searchShorts(q, signal, page) {
       : Promise.resolve());
   const addInvShorts = (d) => (Array.isArray(d) ? d : (d.results || d.items || []))
     .map(nivNormVideo).filter((v) => v && !(v.lengthSeconds > 180)).forEach((v) => { v.isShort = true; push(v); });
+  /* quiet-salad を最優先: 先に結果を push してから他ソースを統合 */
+  await qsSearch(q, signal, page - 1)
+    .then((list) => list.filter((v) => v.isShort).forEach(push)).catch(() => {});
   const jobs = [
-    wkGet(path, signal).then(addApiShorts).catch(() => {}),
+    /* dark-* Worker からはショートを取得しない */
     nivGet(path, signal).then(addApiShorts).catch(() => {}),
     /* Piped API */
     pipedJob.catch(() => {}),
@@ -4686,8 +4754,9 @@ async function fetchHistoryShorts(signal, page) {
   const qs = historyQueries(4).map((q) => q + " shorts");
   if (!qs.length) return [];
   const p = page && page > 1 ? "&page=" + page : "";
+  /* dark-* Worker は使わず Invidious プールから取得 */
   const res = await Promise.allSettled(qs.map((q) =>
-    api("search", "/api/v1/search?q=" + encodeURIComponent(q) + "&type=video&region=" + RG() + p, { signal })));
+    nivGet("/api/v1/search?q=" + encodeURIComponent(q) + "&type=video&region=" + RG() + p, signal)));
   const out = [];
   res.forEach((r) => {
     if (r.status !== "fulfilled") return;
@@ -4712,7 +4781,7 @@ async function homeShortsFeed(signal) {
   const out = [], seen = new Set();
   const push = (v) => {
     const id = vidOf(v);
-    if (!id || seen.has(id)) return;
+    if (!id || seen.has(id) || notShort(v)) return;
     v.videoId = id; v.isShort = true; seen.add(id); out.push(v);
   };
   const hasSubs = (S.subs || []).length > 0;
@@ -4738,7 +4807,7 @@ async function homeShortsMore(signal, page) {
     fetchTrendingShorts(signal),
   ]);
   const out = [];
-  res.forEach((r) => { if (r.status === "fulfilled") (r.value || []).forEach((v) => out.push(v)); });
+  res.forEach((r) => { if (r.status === "fulfilled") (r.value || []).filter((v) => !notShort(v)).forEach((v) => out.push(v)); });
   return out;
 }
 
@@ -4822,7 +4891,7 @@ function fetchShortsQuick(queries, signal) {
     pending = queries.length * 2;
     queries.forEach((q) => {
       /* Invidious と Piped を同時に叩き、先に届いた方から表示する */
-      api("search", "/api/v1/search?q=" + encodeURIComponent(q) + "&type=video&region=" + RG() + "", { signal })
+      nivGet("/api/v1/search?q=" + encodeURIComponent(q) + "&type=video&region=" + RG() + "", signal)
         .then((list) => { collectShorts(list, out); if (out.length >= 6) finish(); })
         .catch(() => {})
         .finally(() => { if (--pending <= 0) finish(); });
@@ -4837,7 +4906,7 @@ function fetchShortsQuick(queries, signal) {
 
 async function fetchShorts(queries, signal) {
   const res = await Promise.allSettled(queries.map((q) =>
-    api("search", "/api/v1/search?q=" + encodeURIComponent(q) + "&type=video&region=" + RG() + "", { signal })));
+    nivGet("/api/v1/search?q=" + encodeURIComponent(q) + "&type=video&region=" + RG() + "", signal)));
   const out = [];
   res.forEach((r) => {
     if (r.status !== "fulfilled") return;
@@ -5439,7 +5508,7 @@ async function pageShorts(startId) {
     });
   }, { threshold: .3 });
 
-  const append = (arr) => arr.forEach((v) => { const n = shortItem(v); box.appendChild(n); io.observe(n); });
+  const append = (arr) => arr.forEach((v) => { if (notShort(v)) return; const n = shortItem(v); box.appendChild(n); io.observe(n); });
   append(list);
   box.appendChild(end);
 
