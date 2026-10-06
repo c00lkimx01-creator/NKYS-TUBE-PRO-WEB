@@ -15,8 +15,6 @@
 <link rel="icon" type="image/png" href="/favicon.png" />
 <!-- 動画表示を高速化するための事前接続 -->
 <link rel="preconnect" href="https://quiet-salad-6130.c00lkimx01.workers.dev" crossorigin />
-<link rel="preconnect" href="https://dark-sun-c226.c00lkimx01.workers.dev" crossorigin />
-<link rel="dns-prefetch" href="https://dark-sun-c226.c00lkimx01.workers.dev" />
 <link rel="preconnect" href="https://api.piped.private.coffee" crossorigin />
 <link rel="dns-prefetch" href="https://api.piped.private.coffee" />
 <link rel="preconnect" href="https://i.ytimg.com" crossorigin />
@@ -1444,15 +1442,14 @@ body.has-mini #cpFab,body.has-mini #cpPanel{display:none}
    その他: Invidious インスタンスを役割別に分担（検索/急上昇/メタ/コメント/チャンネル）
    ===================================================================== */
 
-/* 自前 Cloudflare Worker (Invidious 互換 API) を最優先 */
-const WORKER_API = "https://dark-sun-c226.c00lkimx01.workers.dev";
-const STREAM_PRIMARY = WORKER_API;
+/* 自前 Worker は quiet-salad のみ使用（dark-* Worker は削除済み） */
+const WORKER_API = "https://quiet-salad-6130.c00lkimx01.workers.dev";
+const STREAM_PRIMARY = "https://yt.omada.cafe";
 
 /* Invidious ストリーム取得の主力 */
 const OMADA = "https://yt.omada.cafe";
 const INV_STREAM = [
   OMADA,
-  WORKER_API,
   "https://inv.nadeko.net",
   "https://invidious.nerdvpn.de",
   "https://iv.melmac.space",
@@ -1471,7 +1468,6 @@ const PIPED = [
 
 /* Invidious（検索 / メタ / コメント / チャンネル） */
 const INV_ALL = [
-  WORKER_API,
   "https://yt.omada.cafe",
   "https://inv.nadeko.net",
   "https://invidious.nerdvpn.de",
@@ -1502,11 +1498,11 @@ function applyApiPrefs() {
   const sa = S.settings.streamApi || "invidious";
   const ia = S.settings.infoApi || "invidious";
   const restInv = INV_ALL.filter((b) => b !== WORKER_API);
-  if (sa === "worker") POOLS.stream = uniq([WORKER_API, OMADA].concat(restInv));
+  if (sa === "worker") POOLS.stream = uniq([OMADA].concat(restInv));
   else POOLS.stream = INV_STREAM.slice();
   if (ia === "worker") {
-    POOLS.video = uniq([WORKER_API, OMADA].concat(restInv));
-    POOLS.search = POOLS.trending = POOLS.comments = POOLS.channel = uniq([WORKER_API].concat(restInv));
+    POOLS.video = uniq([OMADA].concat(restInv));
+    POOLS.search = POOLS.trending = POOLS.comments = POOLS.channel = restInv.slice();
   } else {
     POOLS.video = uniq(INV_STREAM.concat(restInv));
     POOLS.search = POOLS.trending = POOLS.comments = POOLS.channel = INV_ALL.slice();
@@ -2313,12 +2309,34 @@ async function ytaVideo(id, signal) {
    /api/v1/shorts/{videoid} : 現在のショート + 次に流すシーケンス(関連ショート)
    /api/v1/channels/{channelID} : チャンネル情報と動画一覧
    いずれも失敗しても既存の取得経路にフォールバックする(表示は壊さない)     */
-async function wkGet(path, signal, ms) {
-  if (/^\/api\/v1\/channels\//.test(path)) {
-    try { return await wkGet0(path, signal, ms); }
-    catch (e) { if (signal && signal.aborted) throw e; return qsGet(path, signal, ms); }
+/* quiet-salad 形式へ変換:
+   /api/v1/channels/{id}?videos|shorts|playlist|live&more=N
+   /api/v1/search?q=..&type=channel|video|playlist&more=N */
+const QS_TAB = { videos: "videos", shorts: "shorts", playlists: "playlist", playlist: "playlist", streams: "live", live: "live" };
+function qsPath(path) {
+  const i = path.indexOf("?");
+  const base = i < 0 ? path : path.slice(0, i);
+  const sp = new URLSearchParams(i < 0 ? "" : path.slice(i + 1));
+  const more = Number(sp.get("more")) || 0;
+  if (/^\/api\/v1\/channels\/[^/]+$/.test(base)) {
+    const tab = QS_TAB[sp.get("tab") || ""];
+    const q = [];
+    if (tab) q.push(tab);
+    if (more > 0) q.push("more=" + more);
+    return base + (q.length ? "?" + q.join("&") : "");
   }
-  return wkGet0(path, signal, ms);
+  if (base === "/api/v1/search") {
+    const q = ["q=" + encodeURIComponent(sp.get("q") || "")];
+    const ty = sp.get("type");
+    if (/^(channel|video|playlist)$/.test(ty || "")) q.push("type=" + ty);
+    const m = more || (Number(sp.get("page")) > 1 ? Number(sp.get("page")) - 1 : 0);
+    if (m > 0) q.push("more=" + m);
+    return base + "?" + q.join("&");
+  }
+  return path;
+}
+async function wkGet(path, signal, ms) {
+  return qsGet(qsPath(path), signal, ms);
 }
 async function wkGet0(path, signal, ms) {
   const ac = new AbortController();
@@ -2326,7 +2344,7 @@ async function wkGet0(path, signal, ms) {
   const onAbort = () => ac.abort();
   if (signal) { if (signal.aborted) ac.abort(); else signal.addEventListener("abort", onAbort); }
   try {
-    const r = await fetch(WORKER_API + path, { signal: ac.signal, headers: { accept: "application/json" } });
+    const r = await fetch(QS_API + path, { signal: ac.signal, headers: { accept: "application/json" } });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const d = await r.json();
     if (d && d.error) throw new Error(String(d.error));
@@ -2481,8 +2499,6 @@ async function wkChannelTab(cid, tab, sort, signal) {
 }
 /* チャンネルのショート (tab=shorts) */
 async function wkChannelShorts(cid, sort, signal) {
-  /* dark-* Worker からはショートを取得しない */
-  return [];
   try {
     const videos = await wkChannelTab(cid, "shorts", sort, signal);
     return (Array.isArray(videos) ? videos : [])
@@ -2797,6 +2813,7 @@ function videoCard(v, mode, idx) {
   const card = el("div", (mode === "list" ? "list-item" : mode === "rel" ? "rel-item" : "card"));
   const live = isLive(v);
   const dur = live ? '<span class="dur live">ライブ</span>'
+    : (v.streamed && !v.lengthSeconds) ? '<span class="dur">配信済み</span>'
     : (v.lengthSeconds ? '<span class="dur">' + fmtDur(v.lengthSeconds) + "</span>" : "");
   /* 先頭から8件はファーストビューに入るため eager + fetchpriority=high で即表示 */
   const eager = idx != null && idx < 8;
@@ -2819,7 +2836,7 @@ function videoCard(v, mode, idx) {
     '<div class="meta">' + (mode === "list" ? "" : av) + "<div style=\"min-width:0;flex:1\">" +
       '<div class="mtitle">' + esc(v.title) + "</div>" +
       channel +
-      '<div class="msub">' + (v.viewCount ? fmtNum(v.viewCount) + "回視聴・" : "") + esc(v.publishedText || ago(v.published)) + "</div>" +
+      '<div class="msub">' + (v.viewCount ? fmtNum(v.viewCount) + "回視聴・" : "") + (v.streamed && !live ? "配信済み・" : "") + esc(String(v.publishedText || ago(v.published) || "").replace(/^配信済み[・ ]?/, "")) + "</div>" +
       desc +
     "</div>" +
     '<button class="card-more" type="button" aria-label="その他" title="その他"><svg viewBox="0 0 24 24"><path d="M12 8a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z"/></svg></button></div>';
@@ -3984,12 +4001,17 @@ async function fetchChannelLive(cid, signal) {
     const id = vidOf(v);
     if (!id || seen.has(id)) return;
     v.videoId = id;
-    if (forceLive) v.liveNow = true;
-    if (!isLive(v) && !(v.liveNow || v.isLive || v.live || v.type === "livestream" || v.type === "stream")) return;
+    /* 再生時間が確定 or 「前/ago」表記は配信済み */
+    const ended = v.lengthSeconds > 0 || /前|ago|配信済|streamed/i.test(String(v.publishedText || ""));
+    if (ended) { v.streamed = true; v.liveNow = false; }
+    else if (forceLive) v.liveNow = true;
+    if (!v.streamed && !isLive(v) && !(v.liveNow || v.isLive || v.live || v.type === "livestream" || v.type === "stream")) return;
     seen.add(id); out.push(v);
   };
   const addApi = (d) => (d && (d.videos || d.streams || d.items || d) || []).forEach((v) => push(v, true));
-  await Promise.allSettled([
+  await wkGet("/api/v1/channels/" + encodeURIComponent(cid) + "?tab=live", signal, 6000).then((d) => wkChannelVideos(d).forEach((v) => push(v, true))).catch(() => {});
+  if (out.length) return out;
+  await settleFast([
     /* Siatube API のチャンネルレスポンスをライブ取得の主ソースにする */
     siaChannel(cid, signal).then((d) => {
       const candidates = [];
@@ -4007,7 +4029,7 @@ async function fetchChannelLive(cid, signal) {
     /* Pipedはlivestreamsタブのstreamをライブとして扱う */
     pipedGet("/channels/tabs?data=" + encodeURIComponent(JSON.stringify({ id: cid, tab: "livestreams" })), signal)
       .then((d) => (d.content || []).map(normPipedVideo).forEach((v) => push(v, true))).catch(() => {}),
-  ]);
+  ], 1200, 8000);
   return out;
 }
 
@@ -4043,7 +4065,7 @@ function makeChannelPager(cid, tab, sort) {
   let src = null, token = null, done = false, pipedTab = null, busy = null;
   const enc = encodeURIComponent;
   const invPath = (c) => "/api/v1/channels/" + enc(cid) + "/" + tab + "?sort_by=" + (INV_SORT[sort] || "newest") + (c ? "&continuation=" + enc(c) : "");
-  const wkPath = (c) => "/api/v1/channels/" + enc(cid) + "?tab=" + tab + "&sort=" + (WK_SORT[sort] || "latest") + (c ? "&continuation=" + enc(c) : "");
+  const wkPath = (c) => "/api/v1/channels/" + enc(cid) + "?tab=" + tab + (c ? "&more=" + enc(c) : "");
   const tokOf = (d) => d && (d.continuation || d.nextpage || d.nextPage || d.next || null);
   async function pipedFirst(signal) {
     if (!isShort) {
@@ -4071,7 +4093,7 @@ function makeChannelPager(cid, tab, sort) {
   }
   async function first(signal) {
     const tries = [
-      ["worker", async () => { const d = await wkChannel(cid, signal, tab, sort); return { list: chNormList(d, isShort), tok: tokOf(d) }; }],
+      ["worker", async () => { const d = await wkGet(wkPath(0), signal); const list = chNormList(d, isShort); return { list, tok: list.length ? 1 : null }; }],
       ["inv", async () => { const d = await api("channel", invPath(""), { signal }); return { list: chNormList(d, isShort), tok: tokOf(d) }; }],
       ["piped", () => pipedFirst(signal)],
     ];
@@ -4085,11 +4107,9 @@ function makeChannelPager(cid, tab, sort) {
   }
   async function more(signal) {
     if (src === "worker") {
-      try { const d = await wkGet(wkPath(token), signal); return { list: chNormList(d, isShort), tok: tokOf(d) }; }
+      try { const d = await wkGet(wkPath(token), signal); const list = chNormList(d, isShort); return { list, tok: list.length ? Number(token) + 1 : null }; }
       catch (e) { if (isAbort(e)) throw e; }
-      /* Worker の continuation は Invidious でも同じ YouTube トークンなので流用 */
-      const d = await api("channel", invPath(token), { signal }); src = "inv";
-      return { list: chNormList(d, isShort), tok: tokOf(d) };
+      return { list: [], tok: null };
     }
     if (src === "inv") { const d = await api("channel", invPath(token), { signal }); return { list: chNormList(d, isShort), tok: tokOf(d) }; }
     return pipedNext(signal);
@@ -4183,8 +4203,21 @@ function siaChannelShorts(d) {
   return out;
 }
 /* チャンネル情報: ytapi / siatube を主軸に、Invidious・Piped で欠けた項目を補完 */
+/* 最初の成功から grace ms 待ったら、残りを待たずに結果を返す（遅いAPIに引きずられない） */
+function settleFast(ps, grace, hard) {
+  return new Promise((resolve) => {
+    const res = ps.map(() => ({ status: "rejected", reason: new Error("slow") }));
+    let left = ps.length, done = false, gt = null;
+    const finish = () => { if (done) return; done = true; clearTimeout(gt); clearTimeout(ht); resolve(res.slice()); };
+    const ht = setTimeout(finish, hard);
+    ps.forEach((p, i) => Promise.resolve(p).then((v) => {
+      res[i] = { status: "fulfilled", value: v };
+      if (!gt) gt = setTimeout(finish, grace);
+    }, (e) => { res[i] = { status: "rejected", reason: e }; }).finally(() => { if (--left === 0) finish(); }));
+  });
+}
 async function fetchChannelData(cid, signal) {
-  const [inv, invVids, piped, sia, yta, wk] = await Promise.allSettled([
+  const [inv, invVids, piped, sia, yta, wk] = await settleFast([
     api("channel", "/api/v1/channels/" + cid, { signal }),
     api("channel", "/api/v1/channels/" + cid + "/videos", { signal }),
     pipedGet("/channel/" + encodeURIComponent(cid), signal),
@@ -4192,7 +4225,7 @@ async function fetchChannelData(cid, signal) {
     ytaChannel(cid, signal),
     /* Worker API: tab=videos を主、失敗時は tab=home にフォールバック */
     wkChannel(cid, signal, "videos", "latest").catch(() => wkChannel(cid, signal, "home", "latest")),
-  ]);
+  ], 900, 7000);
   const W = wk.status === "fulfilled" ? wk.value : null;
   const I = inv.status === "fulfilled" ? inv.value : null;
   const P = piped.status === "fulfilled" ? piped.value : null;
@@ -4523,6 +4556,8 @@ async function pageChannel(cid) {
       if (feat) body.appendChild(feat);
       if (allVideos.length) body.appendChild(allSection("動画", "videos", renderGrid(sortVideos(allVideos).slice(0, 8))));
 
+      const sig0 = nav.abort && nav.abort.signal;
+      const liveP = liveCache ? Promise.resolve(liveCache) : fetchChannelLive(cid, sig0).catch(() => []);
       let allShorts = shortsBySort.get(sortMode);
       if (!allShorts) {
         const ghost = channelTabGhost("shorts");
@@ -4537,7 +4572,7 @@ async function pageChannel(cid) {
         body.appendChild(allSection("ショート", "shorts", holder));
       }
 
-      if (!liveCache) liveCache = await fetchChannelLive(cid, nav.abort && nav.abort.signal).catch(() => []);
+      if (!liveCache) liveCache = await liveP;
       if (liveCache.length) body.appendChild(allSection("ライブ", "live", renderGrid(sortVideos(liveCache).slice(0, 4))));
       if (!allVideos.length && !allShorts.length && !liveCache.length) body.appendChild(el("div", "empty", "コンテンツはありません"));
     } else if (tab === "videos" || tab === "shorts") {
