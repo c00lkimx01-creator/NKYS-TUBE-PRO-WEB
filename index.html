@@ -23,8 +23,6 @@
 <link rel="dns-prefetch" href="https://www.youtube-nocookie.com" />
 <link rel="preconnect" href="https://yt.omada.cafe" crossorigin />
 <link rel="dns-prefetch" href="https://yt.omada.cafe" />
-<link rel="preconnect" href="https://invidousturb-ijmhw3yw.manus.space" crossorigin />
-<link rel="dns-prefetch" href="https://invidousturb-ijmhw3yw.manus.space" />
 <link rel="preconnect" href="https://siatube.com" crossorigin />
 <link rel="preconnect" href="https://ytapi-btpnydgm.manus.space" crossorigin />
 <link rel="dns-prefetch" href="https://ytapi-btpnydgm.manus.space" />
@@ -32,7 +30,6 @@
 <link rel="preconnect" href="https://pipedapi.kavin.rocks" crossorigin />
 <link rel="dns-prefetch" href="https://pipedapi.kavin.rocks" />
 <link rel="preconnect" href="https://pipedapi.adminforge.de" crossorigin />
-<link rel="preload" as="image" href="https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg" fetchpriority="low" />
 <style>
 :root{
   --bg:#0f0f0f; --bg-elev:#181818; --bg-hover:#272727; --chip:#272727; --chip-on:#f1f1f1;
@@ -1545,7 +1542,18 @@ const $ = (s, r) => (r || document).querySelector(s);
 const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 /* APIレスポンスから配列部分を取り出す（配列 / {results} / {items} のどれでも） */
-const rows = (d) => (Array.isArray(d) ? d : ((d && (d.results || d.items)) || []));
+const rows = (d) => {
+  if (Array.isArray(d)) return d;
+  if (!d || typeof d !== "object") return [];
+  const candidates = [d.results, d.items, d.contents, d.content, d.channels, d.videos,
+    d.latestVideos, d.relatedStreams, d.streams];
+  for (const list of candidates) if (Array.isArray(list) && list.length) return list;
+  if (d.data && d.data !== d) {
+    const nested = rows(d.data);
+    if (nested.length) return nested;
+  }
+  return candidates.find(Array.isArray) || [];
+};
 /* Promise を {status,value|reason} に変換して保持する */
 const track = (p, set) => p.then((v) => set({ status: "fulfilled", value: v })).catch((e) => set({ status: "rejected", reason: e }));
 /* 全ジョブ完了・最初の成功+1.5秒・12秒のいずれか早い方で打ち切る */
@@ -1743,24 +1751,39 @@ function bad(b) { hRec(b).fail++; saveHealth(); }
 const rank = (l) => l.slice().sort((a, b) => (hRec(a).fail * 3000 + hRec(a).ms) - (hRec(b).fail * 3000 + hRec(b).ms));
 
 function fetchJson(base, path, signal, timeout) {
-  const c = new AbortController();
-  const onA = () => c.abort();
-  if (signal) signal.addEventListener("abort", onA, { once: true });
-  const t = setTimeout(() => c.abort(), timeout || 7000);
   const t0 = performance.now();
+  const limit = timeout || 7000;
   const raw = base + path;
-  const get = (u) => fetch(u, { headers: { Accept: "application/json" }, signal: c.signal })
-    .then((r) => { if (!r.ok) throw new Error(r.status + " " + base); return r.json(); });
+  const get = (u, ms) => {
+    const c = new AbortController();
+    const onA = () => c.abort();
+    if (signal) {
+      if (signal.aborted) c.abort();
+      else signal.addEventListener("abort", onA, { once: true });
+    }
+    const t = setTimeout(() => c.abort(), ms);
+    return fetch(u, { headers: { Accept: "application/json" }, signal: c.signal })
+      .then((r) => { if (!r.ok) throw new Error(r.status + " " + base); return r.json(); })
+      .then((j) => {
+        if (j && !Array.isArray(j) && typeof j === "object" && j.error) throw new Error(String(j.error));
+        return j;
+      })
+      .finally(() => {
+        clearTimeout(t);
+        if (signal) signal.removeEventListener("abort", onA);
+      });
+  };
   /* プロキシが使えない環境（静的ホスティング等）では自動的に直接取得へフォールバック */
-  const first = USE_PROXY ? get(px(raw)) : get(jaParams(raw));
-  return first
-    .catch((e) => {
-      if (isAbort(e) || !USE_PROXY) throw e;
-      return get(jaParams(raw));
+  const proxyLimit = Math.min(2500, Math.max(800, limit * .45));
+  const first = USE_PROXY
+    ? get(px(raw), proxyLimit).catch((e) => {
+      if (signal && signal.aborted) throw e;
+      return get(jaParams(raw), Math.max(500, limit - (performance.now() - t0)));
     })
+    : get(jaParams(raw), limit);
+  return first
     .then((j) => { ok(base, performance.now() - t0); return j; })
     .catch((e) => { if (!isAbort(e)) bad(base); throw e; })
-    .finally(() => { clearTimeout(t); if (signal) signal.removeEventListener("abort", onA); });
 }
 
 /* wave racing: 速いインスタンスから同時に投げ、失敗しても次の波で復旧 */
@@ -2100,15 +2123,40 @@ function normPipedVideo(it) {
   };
 }
 function normPipedChannel(it) {
-  return {
+  return normChannel({
     type: "channel",
     authorId: pipedChannelId(it.url),
+    id: it.url,
     author: it.name,
     authorThumbnails: it.thumbnail ? [{ url: it.thumbnail }] : [],
     subCount: it.subscribers > 0 ? it.subscribers : 0,
     videoCount: it.videos > 0 ? it.videos : 0,
     description: it.description || "",
     authorVerified: !!it.verified,
+  });
+}
+function normChannel(it) {
+  if (!it || typeof it !== "object") return null;
+  const c = it.channel && typeof it.channel === "object" ? Object.assign({}, it, it.channel) : it;
+  const rawId = c.authorId || c.channelId || c.id || c.channelUrl || c.url || c.uploaderUrl || c.handle || c.username || "";
+  const raw = String(rawId).trim();
+  const uc = raw.match(/UC[\w-]{10,}/);
+  const handle = raw.match(/(?:^|\/)(@[\w.-]+)/);
+  const authorId = uc ? uc[0] : (handle ? handle[1] : raw.replace(/^\/+|\/+$/g, ""));
+  if (!authorId) return null;
+  let icons = c.authorThumbnails || c.channelThumbnails || c.channelIcons || c.avatars || c.icons || c.thumbnails ||
+    c.avatar || c.avatarUrl || c.thumbnail || c.icon || c.iconUrl || c.image || "";
+  if (!Array.isArray(icons)) icons = typeof icons === "string" ? [{ url: icons }] : (icons.url ? [icons] : []);
+  else icons = icons.map((x) => typeof x === "string" ? { url: x } : x).filter((x) => x && x.url);
+  return {
+    type: "channel",
+    authorId,
+    author: c.author || c.name || c.title || c.channelName || c.uploaderName || "",
+    authorThumbnails: icons,
+    subCount: siaNum(c.subCount || c.subscribers || c.subscriberCount || c.subscriberCounts || c.followers),
+    videoCount: siaNum(c.videoCount || c.videos),
+    description: c.description || "",
+    authorVerified: !!(c.authorVerified || c.verified || c.isVerified),
   };
 }
 
@@ -2185,7 +2233,9 @@ async function siaSearch(q, signal) {
   return Array.isArray(d) ? d : (d.items || d.results || []);
 }
 async function siaChannel(cid, signal) {
-  return fetchJson(SIA_CHANNEL_API, "/api/channel/" + encodeURIComponent(cid), signal, 9000);
+  const d = await fetchJson(SIA_CHANNEL_API, "/api/channel/" + encodeURIComponent(cid), signal, 9000);
+  const raw = d && (d.data || d.result || d) || {};
+  return raw.channel && typeof raw.channel === "object" ? Object.assign({}, raw, raw.channel) : raw;
 }
 
 /* 視聴ページ用: siatube の /api/video/{videoid} を Invidious 形式へ正規化
@@ -2293,7 +2343,7 @@ async function ytaChannel(cid, signal) {
   const c = (d && (d.data || d)) || null;
   if (!c) return null;
   const info = c.channel || c.info || c;
-  const list = c.videos || c.results || (c.data && c.data.results) || [];
+  const list = rows(c);
   return {
     name: info.name || info.title || info.author || "",
     description: info.description || "",
@@ -2466,12 +2516,12 @@ async function wkChannel(cid, signal, tab, sort) {
   return wkGet(p, signal);
 }
 function wkChannelVideos(d) {
-  const arr = (d && (d.contents || d.latestVideos || d.videos || d.items || d.relatedStreams || d.content)) || [];
+  const arr = rows(d);
   return (Array.isArray(arr) ? arr : []).map((it) => {
     const id = it && (it.videoId || it.id);
     if (!id || !/^[\w-]{11}$/.test(id)) return null;
     if (it.type && /^(playlist|channel|mix)$/i.test(String(it.type))) return null;
-    const th = ((it.videoThumbnails || []).map((t) => t && t.url).filter(Boolean)[0]) || it.thumbnail || "";
+    const th = ((Array.isArray(it.videoThumbnails) ? it.videoThumbnails : []).map((t) => t && t.url).filter(Boolean)[0]) || it.thumbnail || "";
     return {
       videoId: id,
       title: it.title || "",
@@ -3259,11 +3309,22 @@ async function searchVideos(q, page, signal) {
   /* 最初のソースが返った時点＋1.5秒で打ち切り、遅いソースを待たない */
   await firstPlus(jobs);
   if (signal && signal.aborted) throw Object.assign(new Error("aborted"), { name: "AbortError" });
+  if (!out.length) {
+    await Promise.allSettled([
+      pipedGet("/search?q=" + encodeURIComponent(q) + "&filter=videos", signal)
+        .then((d) => rows(d).map(normPipedVideo).forEach(push)),
+      ytaSearch(q, signal).then((items) => items.forEach(push)),
+    ]);
+    if (signal && signal.aborted) throw Object.assign(new Error("aborted"), { name: "AbortError" });
+  }
   return out;
 }
 async function searchChannels(q, signal) {
   const merged = [], seen = new Set();
-  const push = (c) => { if (c && c.authorId && !seen.has(c.authorId)) { seen.add(c.authorId); merged.push(c); } };
+  const push = (raw) => {
+    const c = normChannel(raw);
+    if (c && c.authorId && !seen.has(c.authorId)) { seen.add(c.authorId); merged.push(c); }
+  };
   const path = "/api/v1/search?q=" + encodeURIComponent(q) + "&type=channel";
   await Promise.allSettled([
     wkGet(path, signal).then((d) => rows(d).forEach(push)).catch(() => {}),
@@ -3271,6 +3332,10 @@ async function searchChannels(q, signal) {
     siaSearch(q, signal)
       .then((items) => items.filter((i) => /channel/i.test(i.type || "")).map(normSiaChannel).forEach(push)).catch(() => {}),
   ]);
+  if (!merged.length && !(signal && signal.aborted)) {
+    await pipedGet("/search?q=" + encodeURIComponent(q) + "&filter=channels", signal)
+      .then((d) => rows(d).forEach(push)).catch((e) => { if (isAbort(e)) throw e; });
+  }
   return merged;
 }
 /* ショート検索: 複数ソース + 複数ページを合成して表示量を大幅に増やす */
@@ -4017,8 +4082,7 @@ async function fetchChannelLive(cid, signal) {
    continuation / nextpage で続きを読み込む。sort: new|pop|old            */
 const INV_SORT = { new: "newest", pop: "popular", old: "oldest" };
 function chPickList(d) {
-  if (Array.isArray(d)) return d;
-  return (d && (d.videos || d.contents || d.content || d.relatedStreams || d.items || d.latestVideos)) || [];
+  return rows(d);
 }
 function chNormList(d, isShortTab) {
   const out = [];
@@ -4191,7 +4255,7 @@ function settleFast(ps, grace, hard) {
     const ht = setTimeout(finish, hard);
     ps.forEach((p, i) => Promise.resolve(p).then((v) => {
       res[i] = { status: "fulfilled", value: v };
-      if (!gt) gt = setTimeout(finish, grace);
+      if (!done && !gt) gt = setTimeout(finish, grace);
     }, (e) => { res[i] = { status: "rejected", reason: e }; }).finally(() => { if (--left === 0) finish(); }));
   });
 }
@@ -4213,7 +4277,7 @@ async function fetchChannelData(cid, signal) {
   if (!I && !P && !X && !Y && !W) throw new Error("channel not found");
 
   const ch = {
-    author: (Y && Y.name) || (X && X.title) || (I && I.author) || (P && P.name) || (W && (W.author || W.title)) || "",
+    author: (Y && Y.name) || (X && X.title) || (I && I.author) || (P && P.name) || (W && (W.author || W.title)) || cid,
     authorId: cid,
     authorHandle: (I && I.authorHandle) || (W && (W.authorHandle || W.handle)) || "",
     subCount: (Y && Y.subCount) || (I && I.subCount) || (W && W.subCount) || (P && P.subscriberCount) || (X ? siaNum(X.videoCount) : 0),
@@ -4260,6 +4324,12 @@ async function fetchChannelData(cid, signal) {
   pushAll(() => (I && Array.isArray(I.latestVideos) ? I.latestVideos : []));
   pushAll(() => (P && Array.isArray(P.relatedStreams) ? P.relatedStreams.map(normPipedVideo) : []));
 
+  /* 既存 API がチャンネル情報だけ返した場合、動画一覧をページャー経由で再取得する */
+  if (!videos.length && !(signal && signal.aborted)) {
+    try {
+      (await makeChannelPager(cid, "videos", "new").next(signal)).forEach(push);
+    } catch (e) { if (isAbort(e)) throw e; }
+  }
   if (!ch.author && !videos.length) throw new Error("channel not found");
   if (ch.authorId && (ch.authorThumbnails || []).length) {
     const u = pickAvatar(ch.authorThumbnails);
