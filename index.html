@@ -1301,6 +1301,15 @@ body.has-mini #cpFab,body.has-mini #cpPanel{display:none}
   #cpPanel.is-opening .cp-head,#cpPanel.is-opening .cp-tabs,#cpPanel.is-opening .cp-body:not([hidden]) .cp-card{animation:none !important}
   #cpFab svg,.subs-view-btn{transition:none}
 }
+
+/* ===== 軽量化: 画面外の要素は描画しない ===== */
+.grid .card,.list-item,.rel-item,.comment,.search-row,.chItem,.sub-row{content-visibility:auto;contain-intrinsic-height:auto 300px}
+.rel-item,.list-item{contain-intrinsic-height:auto 110px}
+.comment{contain-intrinsic-height:auto 90px}
+.grid .card,.list-item,.rel-item,.skel,.spinner{will-change:auto !important}
+html.nk-hidden *,html.nk-hidden *::before,html.nk-hidden *::after{animation-play-state:paused !important}
+.nk-muted{opacity:.6}
+.nk-retry{margin-left:8px;height:30px}
 </style>
 </head>
 <body>
@@ -1434,6 +1443,53 @@ body.has-mini #cpFab,body.has-mini #cpPanel{display:none}
 <script>
 /* NKYS Tube Pro client logic */
 "use strict";
+/* ===== 軽量化 & 画像フォールバック ===== */
+const NK_AVATAR = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="#3a3a3a"/><circle cx="20" cy="16" r="7" fill="#777"/><path d="M6 38c2-8 8-12 14-12s12 4 14 12z" fill="#777"/></svg>');
+(function () {
+  /* タブ非表示中はアニメーションを止める */
+  const vis = () => document.documentElement.classList.toggle("nk-hidden", document.hidden);
+  document.addEventListener("visibilitychange", vis); vis();
+  /* サムネ/アイコンの読み込み失敗時に段階的に代替URLへ切替 */
+  const order = ["maxresdefault", "hq720_2", "hq720", "sddefault", "hqdefault", "mqdefault", "default"];
+  document.addEventListener("error", (e) => {
+    const img = e.target;
+    if (!img || img.tagName !== "IMG") return;
+    const src = img.getAttribute("src") || "";
+    const m = src.match(/^(https?:\/\/i\d?\.ytimg\.com\/(?:vi|vi_webp)\/[\w-]{11}\/)([\w]+)\.(jpg|webp)/);
+    if (m) {
+      const i = order.indexOf(m[2]);
+      const next = order[Math.max(i + 1, order.indexOf("hqdefault"))];
+      if (i < order.length - 1 && next && next !== m[2]) { img.src = "https://i.ytimg.com/vi/" + src.split("/")[4] + "/" + next + ".jpg"; return; }
+    }
+    if (src !== NK_AVATAR && (img.classList.contains("author-av") || img.closest(".comment,.owner,.cr-avatar,.channel-line"))) {
+      if (!img.onerror) img.src = NK_AVATAR;
+    }
+  }, true);
+  /* 画面外の動画カード等の描画を省略 (content-visibility 非対応ブラウザ向け保険は不要) */
+})();
+/* 視聴ページ: 遅れて届いたメタ情報やタイトルの後追い補完 */
+function nkFixWatchMeta(id, v, wrap, siaPromise) {
+  const live = () => wrap.isConnected && !(nav.abort && nav.abort.signal.aborted);
+  const setTitle = (t) => { const h = $("#vtitle"); if (h && t && !badTitle(t)) { const chip = h.querySelector(".livechip"); h.textContent = t; if (chip) h.appendChild(chip); h.classList.remove("skel"); document.title = t + " - NKYS Tube Pro"; } };
+  const setDesc = (d) => { const b = $("#desc .desc-body"); if (b && d) b.innerHTML = descriptionHtml(d); };
+  if (badTitle(v.title)) resolveVideoTitle(id).then((t) => { if (live() && t) { v.title = t; setTitle(t); if (!(v.recommendedVideos || []).length) loadSide(v); } });
+  siaPromise.then((m) => {
+    if (!m || !live()) return;
+    if (m.title && badTitle(v.title)) { v.title = m.title; setTitle(m.title); }
+    if (m.description && !v.description) { v.description = m.description; setDesc(m.description); }
+    if ((m.recommendedVideos || []).length && !(v.recommendedVideos || []).length) { v.recommendedVideos = m.recommendedVideos; loadSide(v); }
+  }).finally(() => {
+    if (!live() || v.description) return;
+    /* 他ソースから概要欄を補完 */
+    const srcs = [() => nivVideo(id), () => wkVideo(id), () => ytaVideo(id)];
+    (async () => {
+      for (const f of srcs) {
+        try { const x = await f(); if (x && x.description) { v.description = x.description; if (live()) setDesc(x.description); return; } } catch (_) {}
+      }
+      if (live()) { const b = $("#desc .desc-body"); if (b && !v.description) b.innerHTML = '<span class="nk-muted">概要欄はありません</span>'; }
+    })();
+  });
+}
 /* =====================================================================
    NKYS Tube Pro — single-file client
    ストリーム: Piped API を最優先
@@ -1590,7 +1646,8 @@ function fmtDur(s) {
   return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0");
 }
 function fmtNum(n) {
-  n = Number(n || 0);
+  if (typeof n === "string" && /[万億KMB]/i.test(n)) return n;
+  n = Number(String(n == null ? 0 : n).replace(/[^\d.]/g, "")) || 0;
   if (n >= 1e8) return (n / 1e8).toFixed(1).replace(/\.0$/, "") + "億";
   if (n >= 1e4) return (n / 1e4).toFixed(1).replace(/\.0$/, "") + "万";
   return n.toLocaleString("ja-JP");
@@ -3564,7 +3621,7 @@ async function pageWatch(id, startAt) {
   if (known && (known.recommendedVideos || []).length) loadSide(known);
   else $("#side").appendChild(ghostRelated(12));
   if (known && known.author) {
-    $(".owner").innerHTML = '<img class="author-av" src="' + esc(authorImg(known) || "") + '" alt=""><div><div class="oname">' + esc(known.author) + '</div></div>';
+    $(".owner").innerHTML = '<img class="author-av" referrerpolicy="no-referrer" src="' + esc(authorImg(known) || NK_AVATAR) + '" alt=""><div><div class="oname">' + esc(known.author) + '</div></div>';
   }
   if (known && known.description) {
     $("#desc .desc-body").innerHTML = descriptionHtml(known.description);
@@ -3574,7 +3631,7 @@ async function pageWatch(id, startAt) {
     if (!meta || nav.abort.signal.aborted || !wrap.isConnected) return;
     rememberVideo(meta);
     if (meta.title) { $("#vtitle").classList.remove("skel"); $("#vtitle").textContent = meta.title; }
-    if (meta.author) $(".owner").innerHTML = '<img class="author-av" src="' + esc(authorImg(meta) || "") + '" alt=""><div><div class="oname">' + esc(meta.author) + '</div></div>';
+    if (meta.author) $(".owner").innerHTML = '<img class="author-av" referrerpolicy="no-referrer" src="' + esc(authorImg(meta) || NK_AVATAR) + '" alt=""><div><div class="oname">' + esc(meta.author) + '</div></div>';
     if (meta.description) {
       const body = $("#desc .desc-body");
       if (body) body.innerHTML = descriptionHtml(meta.description);
@@ -3592,7 +3649,12 @@ async function pageWatch(id, startAt) {
   catch (e) {
     const sx = await siaPromise;
     if (sx) v = sx;
-    else {
+    else if (!isAbort(e)) {
+      const t = (known && known.title) || await resolveVideoTitle(id).catch(() => "");
+      v = Object.assign({ videoId: id, title: t || "", description: "", recommendedVideos: [] }, known || {});
+      if (!v.title) v.title = t;
+    }
+    if (!v) {
       if (!isAbort(e)) $("#playerWrap").innerHTML = '<div class="empty" style="color:#fff">動画を読み込めませんでした。</div>';
       if (!isAbort(e) && wrap.isConnected) {
         $("#infoApiBadge").textContent = "情報API: 利用不可";
@@ -3604,7 +3666,7 @@ async function pageWatch(id, startAt) {
   if (nav.abort.signal.aborted) return;
 
   /* siatube の情報でタイトル / 概要欄 / 関連動画 / 各種メタを上書き */
-  const sia = await Promise.race([siaPromise, Promise.resolve(null)]);
+  const sia = await Promise.race([siaPromise, new Promise((r) => setTimeout(() => r(null), 1500))]);
   if (sia && !nav.abort.signal.aborted) {
     if (sia.title) { v.title = sia.title; v.__infoSource = "siatube"; }
     if (sia.description) { v.description = sia.description; v.__infoSource = "siatube"; }
@@ -3619,12 +3681,18 @@ async function pageWatch(id, startAt) {
   }
 
 
+  if (known) {
+    if (!v.title && known.title) v.title = known.title;
+    if (!v.author && known.author) v.author = known.author;
+    if (!v.authorId && known.authorId) v.authorId = known.authorId;
+    if (!v.description && known.description) v.description = known.description;
+  }
   const streams = pickStreams(v);
   const subbed = S.subs.some((s) => s.id === v.authorId);
 
   $("#vtitle").outerHTML = `<h1 id="vtitle">${esc(v.title)}${isLive(v) ? '<span class="livechip">ライブ</span>' : ""}</h1>`;
   $(".owner").innerHTML = `
-    <img class="author-av" referrerpolicy="no-referrer" src="${esc(authorImg(v) || AVATARS.get(v.authorId || "") || "")}" alt="">
+    <img class="author-av" referrerpolicy="no-referrer" src="${esc(authorImg(v) || AVATARS.get(v.authorId || "") || NK_AVATAR)}" alt="">
     <div>
       <div class="oname" id="goCh">${collabNameHtml(v.authorId, v.author)}</div>
       <div class="osub">${v.subCount ? fmtNum(v.subCount) + "人の登録者" : (v.subCountText ? esc(v.subCountText) : "")}</div>
@@ -3657,7 +3725,7 @@ async function pageWatch(id, startAt) {
   const apiName = (src) => ({ omada: "INVIDIOUS", invidious: "INVIDIOUS", piped: "PIPED", worker: "WORKER", niv: "INVIDIOUS", siatube: "SIATUBE", yta: "YTAPI" })[src] || "不明";
   const streamSource = streams.length ? apiName(v.__streamSource || v.__src) : (mode0 === "edu" ? "YOUTUBE EDUCATION" : "YOUTUBE NOCOOKIE");
   const infoSource = apiName(v.__infoSource || v.__src || (sia ? "siatube" : "unknown"));
-  $("#desc").outerHTML = `<div id="desc"><div class="desc-top"><b>${fmtNum(v.viewCount)}回視聴・${esc(v.publishedText || ago(v.published))}</b><div class="desc-sources"><span id="infoApiBadge">情報API: ${infoSource}</span><span id="streamApiBadge">ストリームAPI: ${streamSource}</span></div></div><div class="desc-body">${descriptionHtml(v.description || "")}</div><button type="button" class="desc-more" aria-expanded="false">もっと見る</button></div>`;
+  $("#desc").outerHTML = `<div id="desc"><div class="desc-top"><b>${fmtNum(v.viewCount)}回視聴・${esc(v.publishedText || ago(v.published))}</b><div class="desc-sources"><span id="infoApiBadge">情報API: ${infoSource}</span><span id="streamApiBadge">ストリームAPI: ${streamSource}</span></div></div><div class="desc-body">${v.description ? descriptionHtml(v.description) : '<span class="nk-muted">概要欄を読み込み中…</span>'}</div><button type="button" class="desc-more" aria-expanded="false">もっと見る</button></div>`;
   $("#commentHead").innerHTML = `<span>${fmtNum(v.commentCount || 0)} 件のコメント</span>`;
 
   window.__nkysStreams = streams;
@@ -3760,6 +3828,7 @@ async function pageWatch(id, startAt) {
   }
 
   loadSide(v);
+  nkFixWatchMeta(id, v, wrap, siaPromise);
   /* Comments already started when navigation began. */
 }
 
@@ -3935,12 +4004,31 @@ function pickStreams(v) {
 
 async function loadSide(v) {
   const side = $("#side");
-  let rec = v.recommendedVideos || [];
+  if (!side) return;
+  const myTok = (side.__nkTok = (side.__nkTok || 0) + 1);
+  const selfId = v.videoId || v.id;
+  let rec = (v.recommendedVideos || []).filter((r) => r && vidOf(r) && vidOf(r) !== selfId);
   if (!rec.length) {
-    try { rec = await api("search", "/api/v1/search?q=" + encodeURIComponent(v.title.slice(0, 60)) + "&type=video"); } catch (_) {}
+    if (!side.querySelector(".rel-item")) { side.innerHTML = ""; side.appendChild(ghostRelated(8)); }
+    const q = String(v.title || v.author || "").slice(0, 60);
+    if (q) {
+      const tries = [
+        () => searchVideos(q, 1),
+        () => api("search", "/api/v1/search?q=" + encodeURIComponent(q) + "&type=video"),
+        () => siaSearch(q).then((a) => a.map(normSiaVideo)),
+      ];
+      for (const f of tries) {
+        try { const r = rows(await f()).filter((x) => x && vidOf(x) && vidOf(x) !== selfId); if (r.length) { rec = r; break; } } catch (_) {}
+        if (side.__nkTok !== myTok || !side.isConnected) return;
+      }
+    }
   }
+  if (side.__nkTok !== myTok || !side.isConnected) return;
   side.innerHTML = "";
-  (rec || []).slice(0, 30).forEach((r) => side.appendChild(videoCard(r, "rel")));
+  if (!rec.length) { side.innerHTML = '<div class="empty">関連動画を取得できませんでした</div>'; }
+  const frag = document.createDocumentFragment();
+  rec.slice(0, 30).forEach((r) => frag.appendChild(videoCard(r, "rel")));
+  side.appendChild(frag);
   renderPlaylistPanel(side, v.videoId || v.id);
 }
 
@@ -4004,16 +4092,25 @@ async function loadComments(id, pending) {
       head.textContent = fmtNum(n) + " 件のコメント";
     }
     box.innerHTML = "";
+    const frag = document.createDocumentFragment();
     (d.comments || []).slice(0, 50).forEach((c) => {
       const n = el("div", "comment");
-      n.innerHTML = '<img loading="lazy" src="' + esc(abs((c.authorThumbnails || []).slice(-1)[0]?.url)) + '" alt="">' +
+      const au = abs((c.authorThumbnails || []).slice(-1)[0]?.url) || NK_AVATAR;
+      n.innerHTML = '<img loading="lazy" decoding="async" referrerpolicy="no-referrer" width="40" height="40" src="' + esc(au) + '" alt="">' +
         '<div><div class="cname">' + esc(c.author) + " <span class=\"badge\">" + esc(c.publishedText || "") + "</span></div>" +
         '<div class="ctext">' + esc(c.content) + "</div>" +
         '<div class="clike">👍 ' + fmtNum(c.likeCount || 0) + "</div></div>";
-      box.appendChild(n);
+      frag.appendChild(n);
     });
+    box.appendChild(frag);
     if (!box.children.length) box.innerHTML = '<div class="empty">コメントはありません</div>';
-  } catch (_) { box.innerHTML = '<div class="empty">コメントを取得できませんでした</div>'; }
+  } catch (_) {
+    if (!box.isConnected) return;
+    commentJobs.delete(id);
+    box.innerHTML = '<div class="empty">コメントを取得できませんでした <button type="button" class="pill nk-retry">再試行</button></div>';
+    const b = box.querySelector(".nk-retry");
+    if (b) b.onclick = () => loadComments(id, getComments(id).catch(() => getCommentsFast(id)));
+  }
 }
 
 function keyBindings(vp) {
