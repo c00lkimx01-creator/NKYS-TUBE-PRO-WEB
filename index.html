@@ -7,6 +7,13 @@
 <script>(function(){try{var p=sessionStorage.getItem("spa-redirect");if(p){sessionStorage.removeItem("spa-redirect");history.replaceState(null,"",p);}}catch(e){}})();</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark light" />
+<meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+<script>/* テーマはデバイス設定に合わせる（読み込み直後に適用してチラつきを防ぐ） */
+(function(){try{var s=JSON.parse(localStorage.getItem("nkys_settings")||"{}");var m=s.themeMode||"system";
+var t=m==="system"?((window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches)?"light":"dark"):(m==="light"?"light":"dark");
+document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme="dark";}})();</script>
 <title>NKYS Tube Pro</title>
 <meta name="description" content="NKYS Tube Pro — Piped / Invidious / siatube を組み合わせた高速動画ビューア。" />
 <meta property="og:title" content="NKYS Tube Pro" />
@@ -1311,6 +1318,273 @@ html.nk-hidden *,html.nk-hidden *::before,html.nk-hidden *::after{animation-play
 .nk-muted{opacity:.6}
 .nk-retry{margin-left:8px;height:30px}
 </style>
+<style id="nkys-yt-2026-ui">
+/* =====================================================================
+   NKYS Tube Pro — 最新 YouTube UI 準拠レイヤー（既存の機能はそのまま）
+   ・テーマはデバイス設定に追従（data-theme は JS が自動設定）
+   ・PC: チップ / カード / ヘッダーの細部を最新 YouTube に合わせる
+   ・スマホ: YouTube アプリそっくりのヘッダー / 検索画面 / ホーム /
+             ショート / 再生ページ / フローティングのボトムナビ
+   ===================================================================== */
+:root{
+  --chip:rgba(255,255,255,.1); --chip-hover:rgba(255,255,255,.2);
+  --nav-glass:rgba(33,33,33,.92); --nav-on:rgba(255,255,255,.16);
+  --sheet:#212121; --scrim:rgba(0,0,0,.6);
+  --mhdr:48px;
+}
+:root[data-theme="light"]{
+  --chip:rgba(0,0,0,.05); --chip-hover:rgba(0,0,0,.1); --chip-on:#0f0f0f;
+  --nav-glass:rgba(255,255,255,.94); --nav-on:rgba(0,0,0,.08);
+  --sheet:#fff; --bg-elev:#f2f2f2;
+}
+html{color-scheme:dark}
+:root[data-theme="light"]{color-scheme:light}
+
+/* ---------- PC: チップは最新 YouTube の角丸長方形 ---------- */
+.chip{border:0 !important;border-radius:8px !important;background:var(--chip);font-weight:500;padding:0 12px;height:32px;display:inline-flex;align-items:center}
+.chip:hover{background:var(--chip-hover)}
+.chip.on{background:var(--chip-on);color:var(--bg)}
+.chip.on:hover{background:var(--chip-on)}
+.pill:not(.solid){background:var(--chip)}
+.pill:not(.solid):hover{background:var(--chip-hover)}
+.pillgroup,.modegroup{background:var(--chip)}
+.pillgroup .pill,.modegroup .pill:not(.on){background:transparent}
+:root[data-theme="light"] .searchbox button[type="submit"]{background:#f8f8f8}
+:root[data-theme="light"] .searchbox .sfield{border-color:#d3d3d3}
+:root[data-theme="light"] .searchbox .voice-search{background:var(--chip);color:var(--fg)}
+:root[data-theme="light"] ::-webkit-scrollbar-thumb{background:#c1c1c1}
+:root[data-theme="light"] #toast{background:#0f0f0f;color:#fff}
+.card .mtitle{font-weight:500}
+.grid{gap:40px 16px}
+
+/* スマホ専用ボタンは PC では隠す */
+#btnMSearch,#btnMBack,#mShortsTop,.m-meta{display:none}
+
+/* =====================================================================
+   スマホ（〜840px）
+   ===================================================================== */
+@media(max-width:840px){
+  :root{--hdr:48px}
+  body{overflow-y:auto}
+
+  /* ---------- ヘッダー: 1 行（ロゴ + 検索 + 設定） ---------- */
+  header{height:calc(var(--mhdr) + env(safe-area-inset-top)) !important;padding:env(safe-area-inset-top) 4px 0 12px !important;
+    display:flex !important;align-items:center;gap:4px;background:var(--bg);border:0 !important}
+  header.scrolled{border:0 !important}
+  .hleft{flex:1;min-width:0}
+  .hleft .logo img{height:26px !important}
+  .hcenter{display:none !important}
+  .hright{display:flex;align-items:center;gap:0}
+  .hright .avatar{display:none}
+  #btnMSearch{display:grid}
+  .hright .icobtn{width:40px;height:40px}
+  .hright .icobtn svg{width:24px;height:24px}
+  main{margin-top:calc(var(--mhdr) + env(safe-area-inset-top)) !important}
+
+  /* ---------- 検索画面（全画面） / 検索結果ヘッダー ---------- */
+  body.msearch header,body.is-results header{padding-left:4px !important;padding-right:8px !important}
+  body.msearch .hleft,body.msearch .hright,
+  body.is-results .hleft,body.is-results .hright{display:none !important}
+  body.msearch #btnMBack,body.is-results #btnMBack{display:grid;flex:none}
+  body.msearch .hcenter,body.is-results .hcenter{display:flex !important;flex:1;min-width:0;position:static}
+  body.msearch .searchbox,body.is-results .searchbox{height:40px;gap:8px;width:100%}
+  body.msearch .searchbox .sfield,body.is-results .searchbox .sfield{height:40px;border:0;border-radius:20px;background:var(--chip)}
+  body.msearch .searchbox input,body.is-results .searchbox input{font-size:16px;padding-left:16px}
+  body.msearch .searchbox button[type="submit"],body.is-results .searchbox button[type="submit"]{display:none}
+  body.msearch .searchbox .voice-search,body.is-results .searchbox .voice-search{display:grid !important;width:40px;height:40px;background:var(--chip);color:var(--fg);margin:0}
+  body.msearch header{z-index:400}
+  body.msearch{overflow:hidden}
+  body.msearch #sugBox{display:block !important;position:fixed;top:calc(var(--mhdr) + env(safe-area-inset-top));left:0;right:0;bottom:0;
+    width:auto;max-width:none;max-height:none;transform:none;border:0;border-radius:0 !important;box-shadow:none;
+    background:var(--bg);padding:4px 0 calc(24px + env(safe-area-inset-bottom));animation:none;overflow-y:auto}
+  body.msearch .sug{gap:20px;padding:0 8px 0 18px;min-height:56px;font-size:16px}
+  body.msearch .sug:hover,body.msearch .sug.sel{background:transparent}
+  body.msearch .sug:active{background:var(--bg-hover)}
+  body.msearch .sug svg{width:24px;height:24px;fill:var(--fg)}
+  body.msearch .sug .sug-x{display:none}
+  body.msearch .sug .sug-t{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35}
+  .sug .sug-fill{display:none}
+  body.msearch .sug .sug-fill{display:grid;place-items:center;width:44px;height:44px;flex:none;border:0;background:transparent;color:var(--fg);border-radius:50%}
+  body.msearch .sug .sug-fill svg{width:22px;height:22px;fill:currentColor}
+  body.msearch #sugBox:empty::before{content:"検索履歴はありません";display:block;padding:40px 16px;text-align:center;color:var(--fg-dim);font-size:14px}
+
+  /* ---------- チップ: 検索結果はグレーの角丸、ホームは下線タブ ---------- */
+  #chips{position:sticky;top:calc(var(--mhdr) + env(safe-area-inset-top));margin:0 -10px !important;padding:8px 12px 10px !important;gap:8px !important;
+    border-bottom:0 !important;box-shadow:none !important;background:var(--bg);z-index:45;scroll-snap-type:none !important}
+  #chips .chip{min-height:32px !important;height:32px;padding:0 12px !important;font-size:14px;font-weight:500;border-radius:8px !important;box-shadow:none !important}
+  body.is-home #chips{gap:22px !important;padding:2px 16px 0 !important;border-bottom:1px solid var(--line) !important}
+  body.is-home #chips .chip{background:transparent !important;color:var(--fg-dim);height:44px;min-height:44px !important;padding:0 !important;
+    border-radius:0 !important;font-size:16px;font-weight:600;position:relative;overflow:visible}
+  body.is-home #chips .chip::after{content:"";position:absolute;left:0;right:0;bottom:0;top:auto;height:3px;border-radius:3px;background:var(--brand);
+    opacity:0;transform:scaleX(.3);transition:transform .2s var(--ease),opacity .2s var(--ease)}
+  body.is-home #chips .chip.on{color:var(--fg)}
+  body.is-home #chips .chip.on::after{opacity:1;transform:none}
+  body.is-home #chips .chip:active{transform:none}
+
+  /* ---------- ホーム / 検索: 動画カード（サムネは画面幅いっぱい） ---------- */
+  .grid,.home-grid{gap:20px 0 !important}
+  .grid > .card,#view .list-item,#side .rel-item{margin-left:-10px !important;margin-right:-10px !important}
+  .grid > .card > .thumb,.list-item > .thumb,.rel-item > .thumb{width:100% !important;margin:0;border-radius:0 !important;flex:none}
+  .grid > .card > .thumb img,.list-item > .thumb img,.rel-item > .thumb img{transform:none !important}
+  .card .meta,.list-item .meta,.rel-item .meta{margin-top:12px;gap:12px;padding:0 12px}
+  .home-video-shelf .card{margin:0 !important}
+  .home-ghost{content-visibility:visible !important;contain:layout style !important}
+  .home-video-shelf .card .meta{padding:0 2px}
+  .card .mtitle,.list-item .mtitle,.rel-item .mtitle{font-size:15px !important;font-weight:500;line-height:1.35;-webkit-line-clamp:2}
+  .card .msub,.list-item .msub,.rel-item .msub{font-size:12.5px;line-height:1.45}
+  .card .msub + .msub{margin-top:0}
+  .card .meta img{width:36px;height:36px}
+  .card-more{top:-6px;right:-8px}
+  .card-more svg{width:18px;height:18px}
+  .list-item{flex-direction:column;gap:0;padding:0 0 12px}
+  .list-item .mdesc{display:none}
+  .list-item .channel-line{font-size:12.5px;min-height:24px}
+  .list-item .channel-line .channel-icon{width:24px;height:24px;flex-basis:24px}
+  .home-section{margin:8px 0 20px}
+  .home-section-head{margin:4px 0 12px}
+  .home-section-head h2{font-size:20px;font-weight:700;display:flex;align-items:center}
+  .dur{right:8px;bottom:8px;font-size:12px;padding:1px 5px}
+
+  /* ---------- ショート棚: 2 枚並び + タイトルはサムネ上 ---------- */
+  .shelf{border:0;margin:4px 0 16px;padding:8px 0 4px}
+  .shelf-head{font-size:20px;margin-bottom:12px}
+  .shelf-arrow{display:none !important}
+  .shelf-scroll,.home-section .shelf-scroll{gap:8px !important;scroll-snap-type:x mandatory;margin:0 -10px;padding:0 10px;scroll-padding:0 10px}
+  .short-card{width:calc((100vw - 28px) / 2) !important;flex:0 0 calc((100vw - 28px) / 2);position:relative;scroll-snap-align:start}
+  .short-card:hover{transform:none}
+  .short-card .sc-thumb{border-radius:12px !important}
+  .short-card .sc-thumb::after{content:"";position:absolute;inset:auto 0 0 0;height:45%;background:linear-gradient(transparent,rgba(0,0,0,.72));pointer-events:none}
+  .short-card .sc-info{position:absolute;left:0;right:0;bottom:0;margin:0;padding:10px 10px 12px;color:#fff;pointer-events:none;background:transparent !important}
+  .short-card .sc-title{font-size:14px;font-weight:600;line-height:1.35;text-shadow:0 1px 3px rgba(0,0,0,.65)}
+  .short-card .sc-views{color:rgba(255,255,255,.85);font-size:12px;text-shadow:0 1px 3px rgba(0,0,0,.65)}
+  .short-card .sc-more{opacity:1;background:transparent;top:4px;right:2px}
+  .short-card .sc-more svg{filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))}
+  .home-ghost .ghost-short,.shelf-more{width:calc((100vw - 28px) / 2) !important;flex:0 0 calc((100vw - 28px) / 2) !important}
+
+  /* ---------- 検索結果: チャンネルカード ---------- */
+  .ch-result{flex-wrap:wrap;gap:12px 16px;padding:16px 0;border-bottom:0}
+  .ch-result img{width:72px !important;height:72px !important}
+  .ch-result .cr-name{font-size:20px !important;font-weight:700}
+  .ch-result .cr-desc{display:none}
+  .ch-result > .pill{flex:1 0 100%;height:40px;justify-content:center;font-size:15px;border-radius:20px}
+  .searchSpotlight{border-radius:12px}
+
+  /* ---------- ボトムナビ: フローティングのピル型 ---------- */
+  #bottomNav{left:50% !important;right:auto !important;bottom:calc(10px + env(safe-area-inset-bottom)) !important;transform:translateX(-50%);
+    width:min(420px,calc(100vw - 40px));height:60px;padding:6px !important;border:0 !important;border-radius:30px;gap:4px;
+    background:var(--nav-glass) !important;backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);
+    box-shadow:0 6px 24px rgba(0,0,0,.35),0 0 0 1px rgba(127,127,127,.12)}
+  #bottomNav .bn-item{border-radius:24px;padding:0 !important;color:var(--fg) !important;min-height:48px;
+    transition:background-color .2s var(--ease),transform .12s var(--ease)}
+  #bottomNav .bn-item span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  #bottomNav .bn-item svg{width:26px;height:26px}
+  #bottomNav .bn-item.on{background:var(--nav-on)}
+  #bottomNav .bn-item:active{transform:scale(.94)}
+  main{padding-bottom:calc(96px + env(safe-area-inset-bottom)) !important}
+  #cpFab{bottom:calc(84px + env(safe-area-inset-bottom));right:14px;width:48px;height:48px}
+  #cpPanel{bottom:calc(140px + env(safe-area-inset-bottom));max-height:calc(100dvh - 200px)}
+  #nkMini{bottom:calc(80px + env(safe-area-inset-bottom)) !important}
+
+  /* ---------- 再生ページ ---------- */
+  body.is-watch header{display:none !important}
+  body.is-watch main{margin-top:0 !important;padding-top:0 !important}
+  body.is-watch .watch{display:grid;grid-template-columns:minmax(0,1fr) !important;gap:0 !important;padding-top:0 !important}
+  body.is-watch .watch > div:first-child{display:contents}
+  body.is-watch #playerWrap{position:sticky;top:0;z-index:50;border-radius:0 !important;margin:0 -10px !important;width:calc(100% + 20px) !important;
+    border-top:env(safe-area-inset-top) solid #000;box-sizing:content-box;box-shadow:0 1px 0 rgba(0,0,0,.25)}
+  body.is-watch #vtitle{font-size:18px !important;font-weight:700;line-height:1.35;margin:12px 0 0 !important;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  body.is-watch .m-meta{display:block;margin-top:6px;font-size:12.5px;line-height:1.5;color:var(--fg-dim)}
+  body.is-watch .m-meta b{color:var(--fg);font-weight:600;margin-right:6px}
+  body.is-watch .m-meta span{margin-right:8px}
+  body.is-watch .m-meta .m-more{color:var(--fg);font-weight:600;cursor:pointer}
+  body.is-watch .owner{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:14px}
+  body.is-watch .owner > img{width:36px !important;height:36px !important}
+  body.is-watch .owner > div:not(.actions){flex:1;min-width:0}
+  body.is-watch .owner .oname{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.is-watch .owner .osub{font-size:12px}
+  body.is-watch #btnSub{height:36px;padding:0 16px;font-size:14px}
+  body.is-watch .owner .actions{flex:1 0 100%;order:9;margin:4px -10px 0 !important;padding:0 10px 2px;gap:8px;
+    overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+  body.is-watch .owner .actions > *{flex:none}
+  body.is-watch .owner .actions .pill{height:36px}
+  body.is-watch .player-more-menu{position:fixed !important;left:8px;right:8px;top:auto !important;bottom:calc(84px + env(safe-area-inset-bottom));
+    min-width:0;border-radius:16px !important;padding:8px;background:var(--sheet);box-shadow:0 -4px 32px rgba(0,0,0,.45);z-index:300}
+  body.is-watch .player-more-menu button{padding:14px 12px;font-size:15px}
+  body.is-watch #desc{margin-top:14px;border-radius:12px !important;background:var(--chip)}
+  /* コメント: YouTube アプリと同じ 1 件だけ見えるカード */
+  body.is-watch #commentHead{margin:14px 0 0;padding:12px 14px 6px;font-size:15px;background:var(--chip);border-radius:12px 12px 0 0;cursor:pointer;
+    display:flex;align-items:center;justify-content:space-between}
+  body.is-watch #commentHead::after{content:"";width:22px;height:22px;flex:none;background:currentColor;opacity:.8;
+    -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 15.4 6.6 10 8 8.6l4 4 4-4 1.4 1.4z'/></svg>") center/contain no-repeat;
+    mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 15.4 6.6 10 8 8.6l4 4 4-4 1.4 1.4z'/></svg>") center/contain no-repeat;transition:transform .2s var(--ease)}
+  body.is-watch .watch:not(.m-cc) #commentHead::after{transform:rotate(180deg)}
+  body.is-watch #comments{background:var(--chip);border-radius:0 0 12px 12px;padding:6px 14px 12px;margin-bottom:16px}
+  body.is-watch .m-cc #comments{cursor:pointer}
+  body.is-watch .m-cc #comments > .comment:nth-child(n+2){display:none}
+  body.is-watch .m-cc #comments > .comment{margin:0;gap:10px;align-items:center}
+  body.is-watch .m-cc #comments > .comment img{width:24px;height:24px}
+  body.is-watch .m-cc #comments > .comment .cname,body.is-watch .m-cc #comments > .comment .clike{display:none}
+  body.is-watch .m-cc #comments > .comment .ctext{margin:0;font-size:13.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  body.is-watch .m-cc #comments .comment-ghost > .comment:nth-child(n+2){display:none}
+  body.is-watch #side{margin-top:4px}
+  .rel-item{flex-direction:column;gap:0;margin-bottom:20px}
+  .rel-item .mtitle{padding-right:34px}
+  .rel-item .related-channel{display:inline;margin:0}
+  .ghost-rel .gr-row{flex-direction:column}
+  .ghost-rel .gr-thumb{width:100%}
+
+  /* ---------- ショート: 全画面・YouTube アプリそっくり ---------- */
+  body.is-shorts{background:#000;overflow:hidden}
+  body.is-shorts header{display:none !important}
+  body.is-shorts main{margin-top:0 !important;padding:0 !important;background:#000}
+  body.is-shorts #chips{display:none !important}
+  body.is-shorts #shortsView{height:calc(100dvh - 80px - env(safe-area-inset-bottom)) !important;margin:0 !important;background:#000}
+  body.is-shorts #shortsView .short,body.is-shorts .shorts-ghost{height:calc(100dvh - 80px - env(safe-area-inset-bottom)) !important;min-height:0 !important}
+  body.is-shorts .short .sh-stage{height:100% !important;width:100% !important;max-width:none !important;border-radius:0 !important;box-shadow:none !important;animation:none}
+  body.is-shorts .short .sh-stage iframe{clip-path:none !important;border-radius:0 !important}
+  body.is-shorts .short .sh-poster,body.is-shorts .short .sh-stage video{border-radius:0 !important}
+  body.is-shorts .short .sh-mute{top:calc(8px + env(safe-area-inset-top));right:auto;left:8px;background:transparent}
+  body.is-shorts .short .sh-overlay{left:0 !important;right:64px !important;width:auto !important;bottom:0 !important;padding:80px 12px 20px !important;
+    background:linear-gradient(to top,rgba(0,0,0,.65) 0%,rgba(0,0,0,.25) 55%,transparent 100%) !important;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+  body.is-shorts .short .sh-owner{order:1 !important;margin:0 0 10px !important;gap:10px !important;flex-wrap:nowrap}
+  body.is-shorts .short .sh-owner img{width:34px;height:34px}
+  body.is-shorts .short .sh-owner .sh-name{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  body.is-shorts .short .sh-sub{flex:none;height:32px;padding:0 14px;font-size:13.5px;font-weight:700;background:#fff;color:#0f0f0f;border-radius:16px}
+  body.is-shorts .short .sh-title{order:2 !important;font-size:14.5px !important;font-weight:500 !important;margin:0 !important;max-height:none}
+  body.is-shorts .short .sh-views{order:3 !important;margin-top:8px;align-self:flex-start;display:inline-flex;align-items:center;gap:6px;
+    background:rgba(255,255,255,.18);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:16px;padding:5px 12px;font-size:12.5px;font-weight:600}
+  body.is-shorts .short .sh-views:empty{display:none}
+  body.is-shorts .short .sh-side{right:2px !important;bottom:20px !important;gap:14px !important}
+  body.is-shorts .short .sh-actwrap{gap:2px}
+  body.is-shorts .short .sh-act{width:48px;height:48px;background:transparent !important;box-shadow:none !important}
+  body.is-shorts .short .sh-act svg{width:30px;height:30px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.6))}
+  body.is-shorts .short .sh-act.on{color:#fff}
+  body.is-shorts .short .sh-act.sh-like.on svg{fill:#fff}
+  body.is-shorts .short .sh-cnt{font-size:12.5px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+  body.is-shorts .short .sh-prog{height:10px}
+  body.is-shorts .short .sh-prog .sh-track{height:2px !important;background:rgba(255,255,255,.3)}
+  body.is-shorts .short .sh-prog .sh-knob{transform:translate(-50%,-50%) scale(0) !important}
+  body.is-shorts .short .sh-prog.drag .sh-track{height:4px !important}
+  body.is-shorts .short .sh-prog.drag .sh-knob{transform:translate(-50%,-50%) scale(1) !important}
+  body.is-shorts .shorts-ghost .sg-frame{width:100%;height:100%;border-radius:0}
+  body.is-shorts #mShortsTop{display:flex;position:fixed;top:calc(6px + env(safe-area-inset-top));right:6px;z-index:60;gap:2px}
+  #mShortsTop button{width:44px;height:44px;border:0;border-radius:50%;background:transparent;color:#fff;display:grid;place-items:center;cursor:pointer}
+  #mShortsTop button:active{background:rgba(255,255,255,.16)}
+  #mShortsTop svg{width:26px;height:26px;fill:#fff;filter:drop-shadow(0 1px 3px rgba(0,0,0,.6))}
+  body.is-shorts #bottomNav{--nav-glass:rgba(33,33,33,.92);--nav-on:rgba(255,255,255,.16);--fg:#f1f1f1}
+  body.is-shorts #bottomNav .bn-item{color:#f1f1f1 !important}
+  body.is-shorts .sh-panel{background:var(--sheet)}
+
+  /* ---------- チャンネル / その他 ---------- */
+  .chPage .chTabs{top:calc(var(--mhdr) + env(safe-area-inset-top))}
+  .chPage .chTab{font-size:15px}
+  .chPage .chBanner{border-radius:12px}
+  .chSubBtn{height:40px}
+  dialog{border-radius:16px !important}
+  #toast{bottom:calc(88px + env(safe-area-inset-bottom))}
+}
+</style>
 </head>
 <body>
 
@@ -1592,7 +1866,28 @@ const S = {
 };
 const saveSettings = () => LS.set("settings", S.settings);
 const RG = () => (S.settings.region || "JP");
-document.documentElement.dataset.theme = S.settings.theme;
+/* テーマ: themeMode = "system"(デバイスに合わせる) | "dark" | "light" */
+if (!S.settings.themeMode) { S.settings.themeMode = "system"; try { LS.set("settings", S.settings); } catch (_) {} }
+const THEME_MQ = window.matchMedia ? matchMedia("(prefers-color-scheme: light)") : null;
+function resolveTheme() {
+  const m = S.settings.themeMode || "system";
+  if (m === "light" || m === "dark") return m;
+  return THEME_MQ && THEME_MQ.matches ? "light" : "dark";
+}
+function applyTheme() {
+  S.settings.theme = resolveTheme();
+  document.documentElement.dataset.theme = S.settings.theme;
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+    if ((S.settings.themeMode || "system") === "system") m.setAttribute("content", /light/.test(m.media) ? "#ffffff" : "#0f0f0f");
+    else m.setAttribute("content", S.settings.theme === "light" ? "#ffffff" : "#0f0f0f");
+  });
+}
+applyTheme();
+if (THEME_MQ) {
+  const onSchemeChange = () => { if ((S.settings.themeMode || "system") === "system") applyTheme(); };
+  if (THEME_MQ.addEventListener) THEME_MQ.addEventListener("change", onSchemeChange);
+  else if (THEME_MQ.addListener) THEME_MQ.addListener(onSchemeChange);
+}
 
 /* ---------------- utils ---------------- */
 const $ = (s, r) => (r || document).querySelector(s);
@@ -5761,7 +6056,9 @@ function pageSettings() {
   wrap.innerHTML =
     "<h1>設定</h1>" +
     '<div class="setCard"><h2>外観</h2>' +
-    row("ダークテーマ", "画面全体の配色を切り替えます", sw("stTheme", st.theme === "dark")) +
+    row("デザイン", "デバイスのテーマを使用すると、端末のダーク / ライト設定に自動で合わせます",
+      '<select id="stTheme">' + [["system", "デバイスのテーマを使用"], ["dark", "ダークテーマ"], ["light", "ライトテーマ"]]
+        .map(([v, n]) => '<option value="' + v + '"' + ((st.themeMode || "system") === v ? " selected" : "") + ">" + n + "</option>").join("") + "</select>") +
     "</div>" +
     '<div class="setCard"><h2>再生</h2>' +
     row("自動再生", "動画ページを開いたら自動で再生します", sw("stAutoplay", !!st.autoplay)) +
@@ -5796,8 +6093,7 @@ function pageSettings() {
 
   const on = (id, fn2) => { const e = $("#" + id, wrap); if (e) e.onchange = fn2; };
   on("stTheme", (e) => {
-    st.theme = e.target.checked ? "dark" : "light";
-    document.documentElement.dataset.theme = st.theme; saveSettings();
+    st.themeMode = e.target.value; applyTheme(); saveSettings();
   });
   on("stAutoplay", (e) => { st.autoplay = e.target.checked; saveSettings(); $("#setAutoplay").checked = e.target.checked; });
   on("stQuality", (e) => { st.quality = e.target.value; saveSettings(); $("#setQuality").value = e.target.value; });
@@ -6384,8 +6680,11 @@ $("#btnMenu").onclick = () => {
 };
 $("#scrim").onclick = () => $("#sidebar").classList.remove("open");
 $("#btnTheme").onclick = () => {
-  S.settings.theme = S.settings.theme === "dark" ? "light" : "dark";
-  document.documentElement.dataset.theme = S.settings.theme; saveSettings();
+  const order = ["system", "dark", "light"];
+  const cur = order.indexOf(S.settings.themeMode || "system");
+  S.settings.themeMode = order[(cur + 1) % order.length];
+  applyTheme(); saveSettings();
+  toast({ system: "デザイン: デバイスのテーマを使用", dark: "デザイン: ダークテーマ", light: "デザイン: ライトテーマ" }[S.settings.themeMode]);
 };
 $("#btnSettings").onclick = () => { go("/settings"); };
 const _legacySettingsDlg = () => {
@@ -6767,5 +7066,186 @@ document.addEventListener("scroll",function(){
 </script>
 
 
+<script>
+/* =============================================================
+   最新 YouTube UI 用の補助（スマホ検索画面 / ページ判定 /
+   再生ページのメタ行・コメントカード / ショート上部ボタン）
+   既存の関数は包むだけで、動作はそのまま
+   ============================================================= */
+(function () {
+  "use strict";
+  const isMobile = () => window.matchMedia("(max-width: 840px)").matches;
+  const SEARCH_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.296 16.996a8 8 0 11.707-.708l3.909 3.91-.707.707-3.909-3.909zM18 11a7 7 0 00-14 0 7 7 0 1014 0z"/></svg>';
+  const BACK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11v1H5.64l6.72 6.72-.71.71-7.93-7.93 7.92-7.92.71.71L5.64 11H21z"/></svg>';
+  const FILL_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5H15v-1.5H4V14.5h1.5V6.06l12.97 12.97 1.06-1.06z"/></svg>';
+  const MORE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0-6a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0-6a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/></svg>';
+
+  const header = document.querySelector("header");
+  const hright = document.querySelector(".hright");
+  const q = document.getElementById("q");
+  if (!header || !hright || !q) return;
+
+  /* ---- ヘッダー: 検索ボタン（スマホ）と戻るボタン ---- */
+  const sBtn = document.createElement("button");
+  sBtn.className = "icobtn"; sBtn.id = "btnMSearch"; sBtn.type = "button";
+  sBtn.setAttribute("aria-label", "検索"); sBtn.title = "検索"; sBtn.innerHTML = SEARCH_SVG;
+  hright.insertBefore(sBtn, hright.firstChild);
+
+  const back = document.createElement("button");
+  back.className = "icobtn"; back.id = "btnMBack"; back.type = "button";
+  back.setAttribute("aria-label", "戻る"); back.title = "戻る"; back.innerHTML = BACK_SVG;
+  header.insertBefore(back, header.firstChild);
+
+  q.setAttribute("placeholder", "検索");
+  const syncPlaceholder = () => q.setAttribute("placeholder", isMobile() ? "YouTube を検索" : "検索");
+
+  let lastQuery = "";
+  const openSearch = () => {
+    lastQuery = q.value;
+    document.body.classList.add("msearch");
+    try { q.focus({ preventScroll: true }); } catch (_) { q.focus(); }
+    if (typeof showSug === "function") showSug();
+  };
+  const closeSearch = () => {
+    document.body.classList.remove("msearch");
+    q.value = /^\/results/.test(currentPath()) ? lastQuery : "";
+    q.dispatchEvent(new Event("input"));
+    if (typeof hideSug === "function") hideSug();
+    q.blur();
+  };
+  sBtn.addEventListener("click", openSearch);
+  back.addEventListener("click", () => {
+    if (document.body.classList.contains("msearch")) { closeSearch(); return; }
+    if (history.length > 1) history.back(); else go("/");
+  });
+  /* 検索結果ページでは入力欄をタップすると全画面の検索画面へ */
+  q.addEventListener("focus", () => {
+    if (isMobile() && !document.body.classList.contains("msearch")) {
+      lastQuery = q.value;
+      document.body.classList.add("msearch");
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && document.body.classList.contains("msearch")) closeSearch();
+  });
+
+  /* ---- 検索候補: 右端の ↖ で入力欄に反映（YouTube アプリと同じ） ---- */
+  const sug = document.getElementById("sugBox");
+  if (sug) {
+    const decorate = () => {
+      sug.querySelectorAll(".sug").forEach((row) => {
+        if (row.querySelector(".sug-fill")) return;
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "sug-fill"; b.setAttribute("aria-label", "検索ボックスに入力");
+        b.innerHTML = FILL_SVG;
+        b.addEventListener("mousedown", (e) => {
+          e.preventDefault(); e.stopPropagation();
+          const t = row.querySelector(".sug-t");
+          q.value = (t ? t.textContent : "") + " ";
+          q.dispatchEvent(new Event("input"));
+          try { q.focus({ preventScroll: true }); } catch (_) { q.focus(); }
+        });
+        row.appendChild(b);
+      });
+    };
+    new MutationObserver(decorate).observe(sug, { childList: true });
+  }
+
+  /* ---- ショート（スマホ）: 右上の検索 / その他 ---- */
+  const top = document.createElement("div");
+  top.id = "mShortsTop";
+  top.innerHTML = '<button type="button" data-a="search" aria-label="検索">' + SEARCH_SVG + '</button>' +
+    '<button type="button" data-a="more" aria-label="その他">' + MORE_SVG + '</button>';
+  document.body.appendChild(top);
+  top.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-a]");
+    if (!b) return;
+    if (b.dataset.a === "search") { openSearch(); return; }
+    /* 表示中のショートの ⋯ メニューを開く */
+    const view = document.getElementById("shortsView");
+    if (!view) return;
+    const vh = view.getBoundingClientRect();
+    const cur = [...view.querySelectorAll(".short")].find((s) => {
+      const r = s.getBoundingClientRect();
+      return r.top < vh.top + vh.height / 2 && r.bottom > vh.top + vh.height / 2;
+    });
+    const m = cur && cur.querySelector(".sh-more");
+    if (m) m.click();
+  });
+
+  /* ---- ページ判定クラス ---- */
+  function syncPage() {
+    const p = currentPath();
+    const b = document.body;
+    b.classList.toggle("is-home", p === "/");
+    b.classList.toggle("is-results", p === "/results" || p === "/search");
+    b.classList.toggle("is-watch", /^\/watch/.test(p));
+    b.classList.toggle("is-shorts", /^\/short(?:s|\/|$)/.test(p));
+    b.classList.remove("msearch");
+    syncPlaceholder();
+  }
+  const _go = go;
+  go = function (path, replace) {
+    if (document.body.classList.contains("msearch")) { document.body.classList.remove("msearch"); try { q.blur(); } catch (_) {} }
+    const r = _go(path, replace);
+    syncPage();
+    return r;
+  };
+  addEventListener("popstate", syncPage);
+  addEventListener("hashchange", syncPage);
+  addEventListener("resize", syncPlaceholder, { passive: true });
+  syncPage();
+
+  /* ---- 再生ページ（スマホ）: タイトル下のメタ行 + コメントカード ---- */
+  const fmt = (n) => (typeof fmtNum === "function" ? fmtNum(n) : String(n));
+  function enhanceWatch() {
+    const w = document.querySelector("#view .watch");
+    if (!w) return;
+    if (!w.classList.contains("m-init")) {
+      w.classList.add("m-init", "m-cc");
+      w.addEventListener("click", (e) => {
+        if (!isMobile()) return;
+        if (e.target.closest("#commentHead")) { w.classList.toggle("m-cc"); return; }
+        if (w.classList.contains("m-cc") && e.target.closest("#comments")) {
+          w.classList.remove("m-cc");
+          return;
+        }
+        if (e.target.closest(".m-more")) {
+          const d = document.getElementById("desc");
+          if (d) {
+            const btn = d.querySelector(".desc-more");
+            if (btn && !d.classList.contains("open")) btn.click();
+            d.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }
+      });
+    }
+    const title = document.getElementById("vtitle");
+    const v = window.__nkysVideo;
+    if (!title || !v || !document.getElementById("btnSub")) return;
+    let meta = w.querySelector(".m-meta");
+    if (!meta) { meta = document.createElement("div"); meta.className = "m-meta"; }
+    if (meta.previousElementSibling !== title) title.insertAdjacentElement("afterend", meta);
+    const key = (v.videoId || v.id || "") + "|" + (v.viewCount || "") + "|" + (v.likeCount || "");
+    if (meta.dataset.key === key) return;
+    meta.dataset.key = key;
+    const ago = String(v.publishedText || (typeof window.ago === "function" ? window.ago(v.published) : "") || "");
+    meta.innerHTML =
+      (v.author ? "<b>@" + esc(v.author) + "</b>" : "") +
+      (v.likeCount ? "<span>高評価 " + fmt(v.likeCount) + " 件</span>" : "") +
+      (v.viewCount ? "<span>" + fmt(v.viewCount) + "回視聴</span>" : "") +
+      (ago ? "<span>" + esc(ago) + "</span>" : "") +
+      '<span class="m-more">その他</span>';
+  }
+  const viewEl = document.getElementById("view");
+  if (viewEl) {
+    let t = 0;
+    new MutationObserver(() => {
+      if (!document.body.classList.contains("is-watch")) return;
+      clearTimeout(t); t = setTimeout(enhanceWatch, 30);
+    }).observe(viewEl, { childList: true, subtree: true });
+  }
+})();
+</script>
 </body>
 </html>
