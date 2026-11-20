@@ -1,5 +1,3 @@
-
-
 <!doctype html>
 <html lang="ja">
 <head>
@@ -1586,22 +1584,113 @@ html{color-scheme:dark}
 }
 </style>
 </head>
+<style id="nk-yt-theme">
+/* ===== NKYS Tube Pro: YouTube風テーマ（v2 上書き） ===== */
+:root{--nk-chip:#272727;--nk-chip-hover:#3a3a3a;--nk-glow:.75}
+:root[data-theme="light"]{--nk-chip:#f2f2f2;--nk-chip-hover:#e5e5e5;--nk-glow:.3}
+html,body{font-family:"YouTube Sans","Roboto","Noto Sans JP",Arial,sans-serif}
+
+/* ---- ヘッダー: 左上はYouTubeロゴ（SVG） ---- */
+header{background:var(--bg)}
+.logo{cursor:pointer;margin-left:4px;padding:0}
+.logo svg.ytlogo{height:20px;width:auto;display:block;fill:currentColor;color:var(--fg)}
+
+/* ---- ピルボタン（画像と同じダークチップ） ---- */
+.pill,.pillgroup{background:var(--nk-chip) !important;color:var(--fg)}
+.pill:hover{background:var(--nk-chip-hover) !important}
+.pill{font-weight:500;font-size:14px;gap:6px}
+.pill svg{width:22px;height:22px}
+.pillgroup{border-radius:18px !important;background:var(--nk-chip) !important}
+.pillgroup .pill{background:transparent !important}
+.pillgroup .pill:hover{background:var(--nk-chip-hover) !important}
+.pillgroup .sep{background:rgba(255,255,255,.2)}
+.pill.solid,#btnSub.solid{background:var(--chip-on) !important;color:var(--bg) !important}
+.pill.solid:hover{opacity:.9}
+.actions{gap:8px}
+.actions > .player-more{width:36px;padding:0;justify-content:center;border-radius:50% !important}
+.actions > .player-more svg{margin:0}
+
+/* ---- 再生ページ: シネマティックライティング ---- */
+.nk-stage{position:relative;isolation:isolate;width:100%}
+.nk-glow{position:absolute;left:-3%;right:-3%;top:-4%;bottom:-8%;z-index:-1;pointer-events:none;opacity:var(--nk-glow);transition:opacity .6s}
+.nk-glow canvas{width:100%;height:100%;display:block;filter:blur(56px) saturate(1.7);transform:scale(1.02);transition:filter .6s}
+#playerWrap{position:relative;z-index:1;box-shadow:0 20px 60px -20px rgba(0,0,0,.7);background:#000}
+
+/* ---- 再生UI（YouTube風コントロールバー） ---- */
+#playerWrap .yt-ctrl{position:absolute;left:0;right:0;bottom:0;z-index:5;padding:0 12px 4px;color:#fff;user-select:none;
+  background:linear-gradient(transparent,rgba(0,0,0,.72));opacity:0;transition:opacity .25s}
+#playerWrap.nk-ui .yt-ctrl,#playerWrap.paused .yt-ctrl,#playerWrap:hover .yt-ctrl,#playerWrap:focus-within .yt-ctrl{opacity:1}
+#playerWrap.nk-ui,#playerWrap.nk-ui *{cursor:auto}
+.yt-prog{position:relative;height:14px;cursor:pointer;display:flex;align-items:flex-end;touch-action:none}
+.yt-prog-bar{position:relative;width:100%;height:4px;background:rgba(255,255,255,.3);transition:height .12s}
+.yt-prog:hover .yt-prog-bar{height:6px}
+.yt-buf,.yt-played{position:absolute;left:0;top:0;bottom:0;pointer-events:none}
+.yt-buf{background:rgba(255,255,255,.45)}
+.yt-played{background:#f00;width:0}
+.yt-knob{position:absolute;top:50%;left:0;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:#f00;transform:scale(0);transition:transform .12s}
+.yt-prog:hover .yt-knob{transform:scale(1)}
+.yt-row{display:flex;align-items:center;gap:2px;height:44px}
+.yt-b{width:40px;height:40px;flex:none;border:0;background:transparent;color:#fff;border-radius:50%;display:grid;place-items:center;cursor:pointer;padding:0}
+.yt-b:hover{background:rgba(255,255,255,.14)}
+.yt-b svg{width:26px;height:26px;fill:#fff;display:block}
+.yt-txt{font-size:14px;font-weight:500;width:auto;padding:0 10px;border-radius:18px}
+.yt-vol{display:flex;align-items:center}
+.yt-volr{width:0;opacity:0;padding:0;margin:0;transition:width .2s,opacity .2s,margin .2s;accent-color:#fff;cursor:pointer}
+.yt-vol:hover .yt-volr,.yt-vol:focus-within .yt-volr{width:84px;opacity:1;margin:0 8px 0 2px}
+.yt-time{font-size:13px;margin-left:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.yt-sp{flex:1}
+
+/* シアターモード: 画面幅いっぱいのプレーヤー（サイドバーはミニ表示） */
+body.theater main{margin-left:var(--rail) !important;padding-left:0 !important;padding-right:0 !important}
+body.theater .watch{display:block !important;max-width:none !important;margin:0 !important;padding:0 0 80px !important}
+body.theater .watch > div{width:100% !important;min-width:0}
+body.theater .watch > div > .nk-stage{padding:0 !important;margin:0 !important}
+body.theater #playerWrap{width:100% !important;height:min(56.25vw,calc(100vh - var(--hdr))) !important;aspect-ratio:auto !important;border-radius:0 !important;box-shadow:none !important;max-width:none !important}
+body.theater #vp{height:100%;width:100%;object-fit:contain}
+body.theater #playerWrap iframe{height:100% !important}
+body.theater .nk-glow{opacity:.95}
+body.theater .watch > div > *:not(.nk-stage){padding-left:24px;padding-right:24px}
+body.theater #vtitle{padding-left:24px !important;padding-right:24px !important}
+body.theater #sideCol{padding:16px 24px 0;min-width:0}
+body.theater #side{display:grid !important;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px 16px;padding:0 !important}
+body.theater #side .rel-item{margin:0 !important}
+body.theater #chips{display:none !important}
+@media (max-width:840px){body.theater main{margin-left:0 !important}}
+
+/* ---- ライブ チャットのリプレイ（ライブ配信のみ） ---- */
+#sideCol{min-width:0}
+#nkChatSlot:empty{display:none}
+.nk-chat{background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:16px}
+.nk-chat-head{padding:12px 16px;font-size:14px;border-bottom:1px solid var(--line)}
+.nk-chat iframe{width:100%;height:460px;border:0;display:block;background:var(--bg-elev)}
+
+/* ---- サムネのホバープレビュー ---- */
+.thumb{position:relative}
+.nk-prev{position:absolute;inset:0;width:100%;height:100%;border:0;opacity:0;transition:opacity .35s;pointer-events:none;background:#000;z-index:2;border-radius:inherit}
+.nk-prev.on{opacity:1}
+
+/* ---- ショート: 画像に合わせた操作UI ---- */
+.short .sh-stage{border-radius:14px;background:#000;box-shadow:none}
+.short .sh-side{gap:16px}
+.short .sh-act{width:48px;height:48px;border-radius:50% !important;background:#272727 !important;color:#fff;box-shadow:none !important}
+.short .sh-act:hover{background:#3a3a3a !important}
+.short .sh-act.on{color:#f00 !important}
+.short .sh-act svg{width:24px;height:24px}
+.short .sh-cnt{color:#fff;font-size:12px;font-weight:500;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.short .sh-owner img{width:36px;height:36px;border-radius:50%}
+.short .sh-sub{background:#fff !important;color:#0f0f0f !important;border:0;border-radius:18px;height:36px;padding:0 14px;font-weight:500;font-size:14px}
+.short .sh-sub:hover{background:#e6e6e6 !important}
+.short .sh-title{font-size:15px;font-weight:500}
+
+/* 再生ページ: 右下の設定フロートボタンが全画面ボタンに重ならないよう上へ移動 */
+body.is-watch #cpFab{top:72px !important;bottom:auto !important}
+</style>
 <body>
 
 <header>
   <div class="hleft">
     <button class="icobtn" id="btnMenu" aria-label="メニュー"><svg viewBox="0 0 24 24"><path d="M21,6H3V5h18V6z M21,11H3v1h18V11z M21,17H3v1h18V17z"/></svg></button>
-    <div class="logo" data-nav="home" aria-label="ホーム" title="ホーム"><img src="/logo.png" alt="仲良しTube JP" style="height:30px;width:auto;display:block" draggable="false"><svg xmlns="http://www.w3.org/2000/svg" class="ytlogo" width="62" height="20" viewBox="31 0 62 20" focusable="false" aria-hidden="true" style="height:20px;width:auto;display:block;margin-left:6px">
-  <g fill="currentColor">
-    <path d="M37.1384 18.8999V13.4399L40.6084 2.09994H38.0184L36.6984 7.24994C36.3984 8.42994 36.1284 9.65994 35.9284 10.7999H35.7684C35.6584 9.79994 35.3384 8.48994 35.0184 7.22994L33.7384 2.09994H31.1484L34.5684 13.4399V18.8999H37.1384Z"></path>
-    <path d="M44.1003 6.29994C41.0703 6.29994 40.0303 8.04994 40.0303 11.8199V13.6099C40.0303 16.9899 40.6803 19.1099 44.0403 19.1099C47.3503 19.1099 48.0603 17.0899 48.0603 13.6099V11.8199C48.0603 8.44994 47.3803 6.29994 44.1003 6.29994ZM45.3903 14.7199C45.3903 16.3599 45.1003 17.3899 44.0503 17.3899C43.0203 17.3899 42.7303 16.3499 42.7303 14.7199V10.6799C42.7303 9.27994 42.9303 8.02994 44.0503 8.02994C45.2303 8.02994 45.3903 9.34994 45.3903 10.6799V14.7199Z"></path>
-    <path d="M52.2713 19.0899C53.7313 19.0899 54.6413 18.4799 55.3913 17.3799H55.5013L55.6113 18.8999H57.6012V6.53994H54.9613V16.4699C54.6812 16.9599 54.0312 17.3199 53.4212 17.3199C52.6512 17.3199 52.4113 16.7099 52.4113 15.6899V6.53994H49.7812V15.8099C49.7812 17.8199 50.3613 19.0899 52.2713 19.0899Z"></path>
-    <path d="M62.8261 18.8999V4.14994H65.8661V2.09994H57.1761V4.14994H60.2161V18.8999H62.8261Z"></path>
-    <path d="M67.8728 19.0899C69.3328 19.0899 70.2428 18.4799 70.9928 17.3799H71.1028L71.2128 18.8999H73.2028V6.53994H70.5628V16.4699C70.2828 16.9599 69.6328 17.3199 69.0228 17.3199C68.2528 17.3199 68.0128 16.7099 68.0128 15.6899V6.53994H65.3828V15.8099C65.3828 17.8199 65.9628 18.4799 67.8728 19.0899Z"></path>
-    <path d="M80.6744 6.26994C79.3944 6.26994 78.4744 6.82994 77.8644 7.73994H77.7344C77.8144 6.53994 77.8744 5.51994 77.8744 4.70994V1.43994H75.3244L75.3144 12.1799L75.3244 18.8999H77.5444L77.7344 17.6999H77.8044C78.3944 18.5099 79.3044 19.0199 80.5144 19.0199C82.5244 19.0199 83.3844 17.2899 83.3844 13.6099V11.6999C83.3844 8.25994 82.9944 6.26994 80.6744 6.26994ZM80.7644 13.6099C80.7644 15.9099 80.4244 17.2799 79.3544 17.2799C78.8544 17.2799 78.1644 17.0399 77.8544 16.5899V9.23994C78.1244 8.53994 78.7244 8.02994 79.3944 8.02994C80.4744 8.02994 80.7644 9.33994 80.7644 11.7299V13.6099Z"></path>
-    <path d="M92.6517 11.4999C92.6517 8.51994 92.3517 6.30994 88.9217 6.30994C85.6917 6.30994 84.9717 8.45994 84.9717 11.6199V13.7899C84.9717 16.8699 85.6317 19.1099 88.8417 19.1099C91.3817 19.1099 92.6917 17.8399 92.5417 15.3799L90.2917 15.2599C90.2617 16.7799 89.9117 17.3999 88.9017 17.3999C87.6317 17.3999 87.5717 16.1899 87.5717 14.3899V13.5499H92.6517V11.4999ZM88.8617 7.96994C90.0817 7.96994 90.1717 9.11994 90.1717 11.0699V12.0799H87.5717V11.0699C87.5717 9.13994 87.6517 7.96994 88.8617 7.96994Z"></path>
-  </g>
-</svg></div>
+    <div class="logo" data-nav="home" aria-label="ホーム" title="ホーム"><svg xmlns="http://www.w3.org/2000/svg" id="yt-ringo2-svg_yt2" class="ytlogo" width="93" height="20" viewBox="0 0 93 20" focusable="false" aria-hidden="true"><g><path d="M14.4848 20C14.4848 20 23.5695 20 25.8229 19.4C27.0917 19.06 28.0459 18.08 28.3808 16.87C29 14.65 29 9.98 29 9.98C29 9.98 29 5.34 28.3808 3.14C28.0459 1.9 27.0917 0.94 25.8229 0.61C23.5695 0 14.4848 0 14.4848 0C14.4848 0 5.42037 0 3.17711 0.61C1.9286 0.94 0.954148 1.9 0.59888 3.14C0 5.34 0 9.98 0 9.98C0 9.98 0 14.65 0.59888 16.87C0.954148 18.08 1.9286 19.06 3.17711 19.4C5.42037 20 14.4848 20 14.4848 20Z" fill="#FF0033"></path><path d="M19 10L11.5 5.75V14.25L19 10Z" fill="white"></path></g><g id="youtube-paths_yt2"><path d="M37.1384 18.8999V13.4399L40.6084 2.09994H38.0184L36.6984 7.24994C36.3984 8.42994 36.1284 9.65994 35.9284 10.7999H35.7684C35.6584 9.79994 35.3384 8.48994 35.0184 7.22994L33.7384 2.09994H31.1484L34.5684 13.4399V18.8999H37.1384Z"></path><path d="M44.1003 6.29994C41.0703 6.29994 40.0303 8.04994 40.0303 11.8199V13.6099C40.0303 16.9899 40.6803 19.1099 44.0403 19.1099C47.3503 19.1099 48.0603 17.0899 48.0603 13.6099V11.8199C48.0603 8.44994 47.3803 6.29994 44.1003 6.29994ZM45.3903 14.7199C45.3903 16.3599 45.1003 17.3899 44.0503 17.3899C43.0203 17.3899 42.7303 16.3499 42.7303 14.7199V10.6799C42.7303 9.27994 42.9303 8.02994 44.0503 8.02994C45.2303 8.02994 45.3903 9.34994 45.3903 10.6799V14.7199Z"></path><path d="M52.2713 19.0899C53.7313 19.0899 54.6413 18.4799 55.3913 17.3799H55.5013L55.6113 18.8999H57.6012V6.53994H54.9613V16.4699C54.6812 16.9599 54.0312 17.3199 53.4212 17.3199C52.6512 17.3199 52.4113 16.7099 52.4113 15.6899V6.53994H49.7812V15.8099C49.7812 17.8199 50.3613 19.0899 52.2713 19.0899Z"></path><path d="M62.8261 18.8999V4.14994H65.8661V2.09994H57.1761V4.14994H60.2161V18.8999H62.8261Z"></path><path d="M67.8728 19.0899C69.3328 19.0899 70.2428 18.4799 70.9928 17.3799H71.1028L71.2128 18.8999H73.2028V6.53994H70.5628V16.4699C70.2828 16.9599 69.6328 17.3199 69.0228 17.3199C68.2528 17.3199 68.0128 16.7099 68.0128 15.6899V6.53994H65.3828V15.8099C65.3828 17.8199 65.9628 19.0899 67.8728 19.0899Z"></path><path d="M80.6744 6.26994C79.3944 6.26994 78.4744 6.82994 77.8644 7.73994H77.7344C77.8144 6.53994 77.8744 5.51994 77.8744 4.70994V1.43994H75.3244L75.3144 12.1799L75.3244 18.8999H77.5444L77.7344 17.6999H77.8044C78.3944 18.5099 79.3044 19.0199 80.5144 19.0199C82.5244 19.0199 83.3844 17.2899 83.3844 13.6099V11.6999C83.3844 8.25994 82.9944 6.26994 80.6744 6.26994ZM80.7644 13.6099C80.7644 15.9099 80.4244 17.2799 79.3544 17.2799C78.8544 17.2799 78.1644 17.0399 77.8544 16.5899V9.23994C78.1244 8.53994 78.7244 8.02994 79.3944 8.02994C80.4744 8.02994 80.7644 9.33994 80.7644 11.7299V13.6099Z"></path><path d="M92.6517 11.4999C92.6517 8.51994 92.3517 6.30994 88.9217 6.30994C85.6917 6.30994 84.9717 8.45994 84.9717 11.6199V13.7899C84.9717 16.8699 85.6317 19.1099 88.8417 19.1099C91.3817 19.1099 92.6917 17.8399 92.5417 15.3799L90.2917 15.2599C90.2617 16.7799 89.9117 17.3999 88.9017 17.3999C87.6317 17.3999 87.5717 16.1899 87.5717 14.3899V13.5499H92.6517V11.4999ZM88.8617 7.96994C90.0817 7.96994 90.1717 9.11994 90.1717 11.0699V12.0799H87.5717V11.0699C87.5717 9.13994 87.6517 7.96994 88.8617 7.96994Z"></path></g></svg></div>
   </div>
   <div class="hcenter">
     <form class="searchbox" id="searchForm">
@@ -1717,6 +1806,215 @@ html{color-scheme:dark}
 <script>
 /* NKYS Tube Pro client logic */
 "use strict";
+
+/* =============================================================
+   NKYS v2: YouTube風プレーヤーUI / シネマティックライティング /
+   サムネのホバープレビュー / ライブ チャットのリプレイ
+   ============================================================= */
+const NK_ICON = {
+  play: "M8 5v14l11-7z",
+  pause: "M6 19h4V5H6v14zm8-14v14h4V5h-4z",
+  next: "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z",
+  vol: "M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z",
+  mute: "M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z",
+  theater: "M19 6H5c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H5V8h14v8z",
+  mini: "M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16.01H3V4.98h18v14.03z",
+  full: "M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z",
+  exitFull: "M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"
+};
+const nkSvg = (d) => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + d + '"/></svg>';
+const nkFmtTime = (s) => {
+  s = Math.max(0, Math.floor(s || 0));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : String(m)) + ":" + String(x).padStart(2, "0");
+};
+
+/* <video> にYouTube風のコントロールバーを付ける（ネイティブ操作UIは使わない） */
+function nkYtControls(box, vp) {
+  const ui = el("div", "yt-ctrl");
+  ui.innerHTML =
+    '<div class="yt-prog" role="slider" aria-label="シーク"><div class="yt-prog-bar"><div class="yt-buf"></div><div class="yt-played"></div><span class="yt-knob"></span></div></div>' +
+    '<div class="yt-row">' +
+      '<button type="button" class="yt-b yt-play" aria-label="再生 / 一時停止">' + nkSvg(NK_ICON.play) + "</button>" +
+      '<button type="button" class="yt-b yt-next" aria-label="次の動画">' + nkSvg(NK_ICON.next) + "</button>" +
+      '<div class="yt-vol"><button type="button" class="yt-b yt-mute" aria-label="ミュート">' + nkSvg(NK_ICON.vol) + "</button>" +
+        '<input class="yt-volr" type="range" min="0" max="1" step="0.05" aria-label="音量"></div>' +
+      '<span class="yt-time">0:00 / 0:00</span>' +
+      '<span class="yt-sp"></span>' +
+      '<button type="button" class="yt-b yt-txt yt-speed" aria-label="再生速度">1x</button>' +
+      '<button type="button" class="yt-b yt-theater" aria-label="シアターモード" title="シアターモード (T)">' + nkSvg(NK_ICON.theater) + "</button>" +
+      '<button type="button" class="yt-b yt-mini" aria-label="ミニプレーヤー" title="ミニプレーヤー (I)">' + nkSvg(NK_ICON.mini) + "</button>" +
+      '<button type="button" class="yt-b yt-fs" aria-label="全画面" title="全画面 (F)">' + nkSvg(NK_ICON.full) + "</button>" +
+    "</div>";
+  box.appendChild(ui);
+
+  const q = (s) => ui.querySelector(s);
+  const prog = q(".yt-prog"), played = q(".yt-played"), buf = q(".yt-buf"), knob = q(".yt-knob");
+  const timeEl = q(".yt-time"), playBtn = q(".yt-play"), muteBtn = q(".yt-mute"), volR = q(".yt-volr");
+  const fsBtn = q(".yt-fs"), speedBtn = q(".yt-speed");
+
+  const togglePlay = () => {
+    if (vp.paused) { const p = vp.play(); if (p && p.catch) p.catch(() => {}); }
+    else vp.pause();
+  };
+  const paint = () => {
+    const d = vp.duration || 0, t = vp.currentTime || 0;
+    const pct = d ? Math.min(100, (t / d) * 100) : 0;
+    played.style.width = pct + "%";
+    knob.style.left = pct + "%";
+    try {
+      if (vp.buffered && vp.buffered.length && d) {
+        buf.style.width = Math.min(100, (vp.buffered.end(vp.buffered.length - 1) / d) * 100) + "%";
+      }
+    } catch (_) {}
+    timeEl.textContent = nkFmtTime(t) + " / " + nkFmtTime(d);
+    muteBtn.innerHTML = nkSvg(vp.muted || vp.volume === 0 ? NK_ICON.mute : NK_ICON.vol);
+    volR.value = vp.muted ? 0 : vp.volume;
+    playBtn.innerHTML = nkSvg(vp.paused ? NK_ICON.play : NK_ICON.pause);
+    box.classList.toggle("paused", vp.paused);
+  };
+
+  /* 再生 / 一時停止 */
+  vp.addEventListener("click", togglePlay);
+  playBtn.onclick = togglePlay;
+
+  /* シークバー（ドラッグ対応） */
+  let dragging = false;
+  const seekFrom = (e) => {
+    const r = prog.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (e.clientX - r.left) / (r.width || 1)));
+    if (vp.duration) vp.currentTime = x * vp.duration;
+    paint();
+  };
+  prog.addEventListener("pointerdown", (e) => { dragging = true; try { prog.setPointerCapture(e.pointerId); } catch (_) {} seekFrom(e); });
+  prog.addEventListener("pointermove", (e) => { if (dragging) seekFrom(e); });
+  prog.addEventListener("pointerup", () => { dragging = false; });
+  prog.addEventListener("pointercancel", () => { dragging = false; });
+
+  /* 音量 */
+  muteBtn.onclick = () => { vp.muted = !vp.muted; paint(); };
+  volR.addEventListener("input", () => { vp.volume = +volR.value; vp.muted = vp.volume === 0; paint(); });
+
+  /* 再生速度 */
+  const RATES = [1, 1.25, 1.5, 2, 0.75, 0.5];
+  let ri = 0;
+  speedBtn.onclick = () => {
+    ri = (ri + 1) % RATES.length;
+    vp.playbackRate = RATES[ri];
+    speedBtn.textContent = RATES[ri] + "x";
+  };
+
+  /* 次の動画 / シアター / ミニプレーヤー / 全画面 */
+  q(".yt-next").onclick = () => {
+    if (playlistNext()) return;
+    const n = $("#side .rel-item"); if (n) n.click();
+  };
+  q(".yt-theater").onclick = () => window.__nkysToggleTheater && window.__nkysToggleTheater();
+  q(".yt-mini").onclick = () => window.__nkysOpenPip && window.__nkysOpenPip();
+  fsBtn.onclick = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else if (box.requestFullscreen) box.requestFullscreen().catch(() => {});
+  };
+  const onFs = () => { fsBtn.innerHTML = nkSvg(document.fullscreenElement ? NK_ICON.exitFull : NK_ICON.full); };
+  document.addEventListener("fullscreenchange", onFs);
+
+  /* 操作中だけUIを表示（再生中は2.2秒で自動的に隠す） */
+  let hideT = 0;
+  const wake = () => {
+    box.classList.add("nk-ui");
+    clearTimeout(hideT);
+    hideT = setTimeout(() => { if (!vp.paused) box.classList.remove("nk-ui"); }, 2200);
+  };
+  box.addEventListener("mousemove", wake);
+  box.addEventListener("pointerdown", wake);
+  vp.addEventListener("pause", () => { box.classList.add("nk-ui"); clearTimeout(hideT); });
+
+  ["timeupdate", "loadedmetadata", "durationchange", "progress", "play", "pause", "volumechange", "ended"]
+    .forEach((ev) => vp.addEventListener(ev, paint));
+  paint();
+  return ui;
+}
+
+/* シネマティックライティング: 動画フレーム（再生中）またはサムネを縮小描画して背景にぼかす */
+function nkStartGlow() {
+  const c = document.getElementById("nkGlow");
+  if (!c || c.__running) return;
+  c.__running = true;
+  const ctx = c.getContext("2d");
+  let last = 0;
+  const tick = (t) => {
+    if (!c.isConnected) { c.__running = false; return; }
+    if (t - last > 260) {
+      last = t;
+      const vp = document.getElementById("vp");
+      try {
+        if (vp && vp.readyState >= 2 && !vp.paused) ctx.drawImage(vp, 0, 0, c.width, c.height);
+        else if (window.__nkGlowImg && window.__nkGlowImg.complete && window.__nkGlowImg.naturalWidth) {
+          ctx.drawImage(window.__nkGlowImg, 0, 0, c.width, c.height);
+        }
+      } catch (_) {}
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+/* ライブ配信（終了済みを含む）のみ、YouTube公式のチャットのリプレイを表示 */
+function nkIsLiveish(v) {
+  return !!v && !!(isLive(v) || v.liveNow || v.isLive || v.streamed);
+}
+function nkMountLiveChat(id, v) {
+  const slot = document.getElementById("nkChatSlot");
+  if (!slot || !nkIsLiveish(v)) { if (slot) slot.innerHTML = ""; return; }
+  const host = location.hostname || "localhost";
+  slot.innerHTML =
+    '<div class="nk-chat"><div class="nk-chat-head"><b>チャットのリプレイ</b></div>' +
+    '<iframe title="チャットのリプレイ" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" src="https://www.youtube.com/live_chat_replay?v=' +
+    encodeURIComponent(id) + "&embed_domain=" + encodeURIComponent(host) + '"></iframe></div>';
+}
+
+/* サムネに数秒カーソルを合わせると、ミュートのプレビューを再生（マウス操作のみ） */
+const NK_CARD_SEL = ".card,.rel-item,.list-item";
+let nkPvTimer = 0, nkPvCard = null;
+function nkPreviewStart(card) {
+  const id = card.dataset.vid;
+  const thumb = card.querySelector(".thumb");
+  if (!id || !thumb || thumb.querySelector(".nk-prev")) return;
+  const f = document.createElement("iframe");
+  f.className = "nk-prev";
+  f.title = "プレビュー";
+  f.tabIndex = -1;
+  f.setAttribute("aria-hidden", "true");
+  f.allow = "autoplay; encrypted-media";
+  f.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(id) +
+    "?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&fs=0";
+  f.onload = () => f.classList.add("on");
+  thumb.appendChild(f);
+}
+function nkPreviewStop(card) {
+  if (!card) return;
+  card.querySelectorAll(".nk-prev").forEach((n) => n.remove());
+}
+if (window.matchMedia && matchMedia("(hover: hover)").matches) {
+  document.addEventListener("pointerover", (e) => {
+    const c = e.target.closest && e.target.closest(NK_CARD_SEL);
+    if (!c || c === nkPvCard || !c.dataset.vid) return;
+    clearTimeout(nkPvTimer);
+    nkPreviewStop(nkPvCard);
+    nkPvCard = c;
+    nkPvTimer = setTimeout(() => nkPreviewStart(c), 1500);
+  }, true);
+  document.addEventListener("pointerout", (e) => {
+    const c = e.target.closest && e.target.closest(NK_CARD_SEL);
+    if (!c) return;
+    const to = e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(NK_CARD_SEL);
+    if (to === c) return;
+    clearTimeout(nkPvTimer);
+    nkPreviewStop(c);
+    if (nkPvCard === c) nkPvCard = null;
+  }, true);
+}
+
 /* ===== 軽量化 & 画像フォールバック ===== */
 const NK_AVATAR = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="#3a3a3a"/><circle cx="20" cy="16" r="7" fill="#777"/><path d="M6 38c2-8 8-12 14-12s12 4 14 12z" fill="#777"/></svg>');
 (function () {
@@ -3244,6 +3542,7 @@ function videoCard(v, mode, idx) {
   const relatedChannel = card.querySelector(".related-channel");
   if (relatedChannel && channelId) relatedChannel.onclick = (e) => { e.stopPropagation(); go("/channel?c=" + encodeURIComponent(channelId)); };
   card.onclick = () => go("/watch?v=" + id);
+  card.dataset.vid = id;
   card.addEventListener("pointerenter", () => prefetchVideo(id), { once: true });
   card.addEventListener("touchstart", () => prefetchVideo(id), { once: true, passive: true });
   return card;
@@ -3890,7 +4189,7 @@ async function pageWatch(id, startAt) {
   const wrap = el("div", "watch");
   wrap.innerHTML = `
     <div>
-      <div id="playerWrap"></div>
+      <div class="nk-stage"><div class="nk-glow"><canvas id="nkGlow" width="64" height="36"></canvas></div><div id="playerWrap"></div></div>
       <h1 id="vtitle" class="${known && known.title ? "" : "skel"}" style="min-height:24px;margin:12px 0 0;border-radius:6px">${known && known.title ? esc(known.title) : ""}</h1>
       <div class="owner">
         <div class="skel" style="width:40px;height:40px;border-radius:50%"></div>
@@ -3911,8 +4210,9 @@ async function pageWatch(id, startAt) {
       <div class="sechead" id="commentHead"><span>コメント</span></div>
       <div id="comments"><div class="spinner"></div></div>
     </div>
-    <aside id="side"></aside>`;
+    <aside id="sideCol"><div id="nkChatSlot"></div><div id="side"></div></aside>`;
   view().innerHTML = ""; view().appendChild(wrap);
+  window.__nkGlowImg = new Image(); window.__nkGlowImg.src = guessThumb; nkStartGlow();
   if (known && (known.recommendedVideos || []).length) loadSide(known);
   else $("#side").appendChild(ghostRelated(12));
   if (known && known.author) {
@@ -3999,7 +4299,7 @@ async function pageWatch(id, startAt) {
         <div class="sep"></div>
         <button class="pill"><svg viewBox="0 0 24 24" style="transform:rotate(180deg)"><path d="M18.8 9H14V4.6L11 12v8h7l3-8.6zM3 12h4v8H3z"/></svg></button>
       </div>
-      <button class="pill" id="btnSave">保存</button>
+      <button class="pill" id="btnShare" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z"/></svg>共有</button><button class="pill" id="btnSave" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>保存</button>
       <select class="pill" id="qsel" title="画質" style="padding:0 10px"></select>
       <div class="player-more-wrap">
         <button class="pill player-more" id="btnPlayerMore" type="button" aria-label="その他のプレイヤー操作" aria-expanded="false" title="その他">⋯</button>
@@ -4025,6 +4325,7 @@ async function pageWatch(id, startAt) {
 
   window.__nkysStreams = streams;
   window.__nkysVideo = v;
+  nkMountLiveChat(id, v);
   const qsel = $("#qsel");
   streams.forEach((s, i) => qsel.appendChild(new Option(s.label, i)));
   if (!streams.length) qsel.appendChild(new Option("再生不可", 0));
@@ -4064,6 +4365,7 @@ async function pageWatch(id, startAt) {
     navigator.clipboard.writeText(url); toast("リンクをコピーしました");
   };
   $("#btnSave").onclick = () => savePlaylistPrompt(v);
+  $("#btnShare").onclick = () => shareVideo();
   const moreBtn = $("#btnPlayerMore"), moreMenu = $("#playerMoreMenu");
   const theaterItem = moreMenu?.querySelector('[data-player-action="theater"]');
   const closePlayerMore = () => {
@@ -4201,7 +4503,7 @@ function mountPlayer(mode, opt) {
     return;
   }
   const vp = el("video");
-  vp.id = "vp"; vp.controls = true; vp.playsInline = true; vp.preload = "auto";
+  vp.id = "vp"; vp.controls = false; vp.playsInline = true; vp.preload = "auto";
   if (S.settings.autoplay) vp.autoplay = true;
   if (opt.poster) vp.poster = opt.poster;
   box.appendChild(vp);
@@ -4233,6 +4535,7 @@ function mountPlayer(mode, opt) {
     const n = $("#side .rel-item"); if (S.settings.autoplay && n) n.click();
   });
   keyBindings(vp);
+  nkYtControls(box, vp);
 }
 
 /* いま再生中の位置(秒) — モード切替時に引き継ぐ */
