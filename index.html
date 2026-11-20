@@ -1656,10 +1656,15 @@ body.theater #side .rel-item{margin:0 !important}
 body.theater #chips{display:none !important}
 @media (max-width:840px){body.theater main{margin-left:0 !important}}
 
-/* ---- サムネのホバープレビュー ---- */
+/* ---- サムネのホバープレビュー（nocookie 埋め込み） ---- */
 .thumb{position:relative}
-.nk-prev{position:absolute;inset:0;width:100%;height:100%;border:0;opacity:0;transition:opacity .35s;pointer-events:none;background:#000;z-index:2;border-radius:inherit}
+.nk-prev{position:absolute;inset:0;width:100%;height:100%;border:0;opacity:0;transition:opacity .45s ease;pointer-events:none;background:#000;z-index:2;border-radius:inherit}
 .nk-prev.on{opacity:1}
+.thumb.nk-live img{opacity:0;transition:opacity .45s ease}
+.thumb.nk-live .dur{opacity:0;transition:opacity .3s}
+.thumb img,.thumb .dur{transition:opacity .45s ease}
+.nk-prev-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.28);z-index:3;pointer-events:none}
+.nk-prev-bar i{display:block;height:100%;width:0;background:#f00;transition:width .5s linear}
 
 /* ---- ショート: 画像に合わせた操作UI ---- */
 .short .sh-stage{border-radius:14px;background:#000;box-shadow:none}
@@ -1954,6 +1959,18 @@ function nkStartGlow() {
 /* サムネに数秒カーソルを合わせると、ミュートのプレビューを再生（マウス操作のみ） */
 const NK_CARD_SEL = ".card,.rel-item,.list-item";
 let nkPvTimer = 0, nkPvCard = null;
+/* プレビューは YouTube 公式の nocookie 埋め込み（ミュート・操作UIなし）。
+   IFrame API の infoDelivery で再生位置を受け取り、下部のバーに反映する */
+const NK_PV_ORIGIN = "https://www.youtube-nocookie.com";
+let nkPvFrame = null;
+window.addEventListener("message", (e) => {
+  if (!nkPvFrame || e.source !== nkPvFrame.contentWindow) return;
+  let d;
+  try { d = typeof e.data === "string" ? JSON.parse(e.data) : e.data; } catch (_) { return; }
+  if (!d || d.event !== "infoDelivery" || !d.info || !nkPvFrame.__bar) return;
+  const cur = Number(d.info.currentTime), dur = Number(d.info.duration);
+  if (dur > 0 && isFinite(cur)) nkPvFrame.__bar.style.width = Math.min(100, (cur / dur) * 100) + "%";
+});
 function nkPreviewStart(card) {
   const id = card.dataset.vid;
   const thumb = card.querySelector(".thumb");
@@ -1964,14 +1981,30 @@ function nkPreviewStart(card) {
   f.tabIndex = -1;
   f.setAttribute("aria-hidden", "true");
   f.allow = "autoplay; encrypted-media";
-  f.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(id) +
-    "?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&fs=0";
-  f.onload = () => f.classList.add("on");
+  f.src = NK_PV_ORIGIN + "/embed/" + encodeURIComponent(id) +
+    "?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&fs=0&enablejsapi=1&origin=" +
+    encodeURIComponent(location.origin);
+  const bar = document.createElement("div");
+  bar.className = "nk-prev-bar";
+  bar.innerHTML = "<i></i>";
+  f.__bar = bar.firstChild;
+  f.onload = () => {
+    f.classList.add("on");
+    try { f.contentWindow.postMessage(JSON.stringify({ event: "listening", id: "nk-" + id, channel: "widget" }), NK_PV_ORIGIN); } catch (_) {}
+  };
   thumb.appendChild(f);
+  thumb.appendChild(bar);
+  thumb.classList.add("nk-live");
+  nkPvFrame = f;
 }
 function nkPreviewStop(card) {
   if (!card) return;
-  card.querySelectorAll(".nk-prev").forEach((n) => n.remove());
+  const thumb = card.querySelector(".thumb");
+  if (thumb) {
+    thumb.querySelectorAll(".nk-prev, .nk-prev-bar").forEach((n) => n.remove());
+    thumb.classList.remove("nk-live");
+  }
+  if (nkPvFrame && card.contains(nkPvFrame)) nkPvFrame = null;
 }
 if (window.matchMedia && matchMedia("(hover: hover)").matches) {
   document.addEventListener("pointerover", (e) => {
