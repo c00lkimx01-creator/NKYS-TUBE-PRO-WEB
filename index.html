@@ -1651,18 +1651,10 @@ body.theater #playerWrap iframe{height:100% !important}
 body.theater .nk-glow{opacity:.95}
 body.theater .watch > div > *:not(.nk-stage){padding-left:24px;padding-right:24px}
 body.theater #vtitle{padding-left:24px !important;padding-right:24px !important}
-body.theater #sideCol{padding:16px 24px 0;min-width:0}
 body.theater #side{display:grid !important;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px 16px;padding:0 !important}
 body.theater #side .rel-item{margin:0 !important}
 body.theater #chips{display:none !important}
 @media (max-width:840px){body.theater main{margin-left:0 !important}}
-
-/* ---- ライブ チャットのリプレイ（ライブ配信のみ） ---- */
-#sideCol{min-width:0}
-#nkChatSlot:empty{display:none}
-.nk-chat{background:var(--bg-elev);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:16px}
-.nk-chat-head{padding:12px 16px;font-size:14px;border-bottom:1px solid var(--line)}
-.nk-chat iframe{width:100%;height:460px;border:0;display:block;background:var(--bg-elev)}
 
 /* ---- サムネのホバープレビュー ---- */
 .thumb{position:relative}
@@ -1809,7 +1801,7 @@ body.is-watch #cpFab{top:72px !important;bottom:auto !important}
 
 /* =============================================================
    NKYS v2: YouTube風プレーヤーUI / シネマティックライティング /
-   サムネのホバープレビュー / ライブ チャットのリプレイ
+   サムネのホバープレビュー
    ============================================================= */
 const NK_ICON = {
   play: "M8 5v14l11-7z",
@@ -1957,20 +1949,6 @@ function nkStartGlow() {
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
-}
-
-/* ライブ配信（終了済みを含む）のみ、YouTube公式のチャットのリプレイを表示 */
-function nkIsLiveish(v) {
-  return !!v && !!(isLive(v) || v.liveNow || v.isLive || v.streamed);
-}
-function nkMountLiveChat(id, v) {
-  const slot = document.getElementById("nkChatSlot");
-  if (!slot || !nkIsLiveish(v)) { if (slot) slot.innerHTML = ""; return; }
-  const host = location.hostname || "localhost";
-  slot.innerHTML =
-    '<div class="nk-chat"><div class="nk-chat-head"><b>チャットのリプレイ</b></div>' +
-    '<iframe title="チャットのリプレイ" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" src="https://www.youtube.com/live_chat_replay?v=' +
-    encodeURIComponent(id) + "&embed_domain=" + encodeURIComponent(host) + '"></iframe></div>';
 }
 
 /* サムネに数秒カーソルを合わせると、ミュートのプレビューを再生（マウス操作のみ） */
@@ -4210,7 +4188,7 @@ async function pageWatch(id, startAt) {
       <div class="sechead" id="commentHead"><span>コメント</span></div>
       <div id="comments"><div class="spinner"></div></div>
     </div>
-    <aside id="sideCol"><div id="nkChatSlot"></div><div id="side"></div></aside>`;
+    <aside id="side"></aside>`;
   view().innerHTML = ""; view().appendChild(wrap);
   window.__nkGlowImg = new Image(); window.__nkGlowImg.src = guessThumb; nkStartGlow();
   if (known && (known.recommendedVideos || []).length) loadSide(known);
@@ -4325,7 +4303,6 @@ async function pageWatch(id, startAt) {
 
   window.__nkysStreams = streams;
   window.__nkysVideo = v;
-  nkMountLiveChat(id, v);
   const qsel = $("#qsel");
   streams.forEach((s, i) => qsel.appendChild(new Option(s.label, i)));
   if (!streams.length) qsel.appendChild(new Option("再生不可", 0));
