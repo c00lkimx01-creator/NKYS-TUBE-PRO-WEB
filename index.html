@@ -4,8 +4,8 @@
 <meta name="referrer" content="no-referrer">
 <script>(function(){try{var p=sessionStorage.getItem("spa-redirect");if(p){sessionStorage.removeItem("spa-redirect");history.replaceState(null,"",p);}}catch(e){}})();</script>
 <meta charset="utf-8" />
-<meta name="nkys-build" content="overlay-default-v4" />
-<script>console.info("NKYS Tube Pro build: overlay-default-v4");</script>
+<meta name="nkys-build" content="overlay-quality-v6" />
+<script>console.info("NKYS Tube Pro build: overlay-quality-v6");</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="color-scheme" content="dark light" />
 <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
@@ -1847,6 +1847,42 @@ const nkFmtTime = (s) => {
 };
 
 /* <video> にYouTube風のコントロールバーを付ける（ネイティブ操作UIは使わない） */
+/* 埋め込み(nocookie)用の画質メニュー。YouTube が返す候補だけを出し、実際の画質をラベルに反映する */
+const NK_QLABEL = { hd2160: "2160p", hd1440: "1440p", hd1080: "1080p", hd720: "720p", large: "480p", medium: "360p", small: "240p", tiny: "144p", auto: "自動", default: "自動" };
+function embedQualityMenu(ui, vp) {
+  const qbtn = ui.querySelector(".yt-qbtn"), qpop = ui.querySelector(".yt-pop"), qlabel = ui.querySelector(".yt-qlabel");
+  if (!qbtn || !qpop || !qlabel) return;
+  const lbl = (v) => NK_QLABEL[v] || v;
+  const close = () => { qpop.hidden = true; qbtn.setAttribute("aria-expanded", "false"); };
+  const sync = () => { qlabel.textContent = lbl(vp.quality || "auto"); };
+  const build = () => {
+    const cur = vp.quality || "auto";
+    const levels = (vp.qualityLevels || []).filter((v) => v !== "auto" && v !== "default");
+    const items = ["auto"].concat(levels.filter((v, i, a) => a.indexOf(v) === i));
+    qpop.innerHTML = '<div class="yt-pop-h">画質</div>' +
+      items.map((v) => '<button type="button" class="yt-pop-i' + (v === cur ? " on" : "") + '" data-q="' + esc(v) + '"><span class="yt-chk">' + (v === cur ? "✓" : "") + "</span>" + esc(lbl(v)) + "</button>").join("") +
+      (levels.length ? "" : '<div class="yt-pop-e">この動画は YouTube 側で画質が自動に決められています</div>');
+  };
+  qbtn.onclick = (e) => {
+    e.stopPropagation();
+    if (qpop.hidden) { build(); qpop.hidden = false; qbtn.setAttribute("aria-expanded", "true"); }
+    else close();
+  };
+  qpop.onclick = (e) => {
+    const b = e.target.closest("[data-q]");
+    if (!b) return;
+    vp.quality = b.dataset.q;
+    close(); sync();
+  };
+  const outside = (e) => {
+    if (!ui.isConnected) { document.removeEventListener("click", outside); return; }
+    if (!ui.contains(e.target)) close();
+  };
+  document.addEventListener("click", outside);
+  vp.addEventListener("qualitychange", sync);
+  sync();
+}
+
 function nkYtControls(box, vp, opt) {
   const ui = el("div", "yt-ctrl");
   ui.innerHTML =
@@ -1923,8 +1959,10 @@ function nkYtControls(box, vp, opt) {
   };
 
   const noQ = !!(opt && opt.noQuality);
+  const embedQ = !!(opt && opt.embedQuality);
   if (noQ) { const w = ui.querySelector(".yt-qwrap"); if (w) w.remove(); }
-  if (!noQ) {
+  if (embedQ) embedQualityMenu(ui, vp);
+  else if (!noQ) {
   /* 画質メニュー（プレーヤー内）。選択肢は再生中の動画のストリーム一覧から作る */
   const qbtn = q(".yt-qbtn"), qpop = q(".yt-pop");
   const qsel = $("#qsel");
@@ -4545,7 +4583,7 @@ function eduEmbedUrl(id, params, start) {
 function nkEmbedMedia(frame) {
   const ORIGIN = "https://www.youtube-nocookie.com";
   const bus = new EventTarget();
-  const st = { time: 0, dur: 0, state: -1, vol: 100, muted: false, rate: 1, gotInfo: false };
+  const st = { time: 0, dur: 0, state: -1, vol: 100, muted: false, rate: 1, gotInfo: false, quality: "auto", levels: [] };
   const send = (obj) => { try { frame.contentWindow.postMessage(JSON.stringify(obj), ORIGIN); } catch (_) {} };
   const cmd = (func, args) => send({ event: "command", func, args: args || [] });
   const emit = (t) => bus.dispatchEvent(new Event(t));
@@ -4561,6 +4599,8 @@ function nkEmbedMedia(frame) {
     if (typeof i.volume === "number") st.vol = i.volume;
     if (typeof i.muted === "boolean") st.muted = i.muted;
     if (typeof i.playbackRate === "number") st.rate = i.playbackRate;
+    if (Array.isArray(i.availableQualityLevels) && i.availableQualityLevels.length) st.levels = i.availableQualityLevels.slice();
+    if (typeof i.playbackQuality === "string" && i.playbackQuality !== st.quality) { st.quality = i.playbackQuality; emit("qualitychange"); }
     if (typeof i.playerState === "number" && i.playerState !== st.state) {
       st.state = i.playerState;
       emit(st.state === 1 ? "play" : st.state === 2 ? "pause" : st.state === 0 ? "ended" : "waiting");
@@ -4568,7 +4608,7 @@ function nkEmbedMedia(frame) {
     emit("timeupdate");
   };
   window.addEventListener("message", onMsg);
-  const listen = () => send({ event: "listening", id: 1, channel: "widget" });
+  const listen = () => { send({ event: "listening", id: 1, channel: "widget" }); cmd("getAvailableQualityLevels"); };
   frame.addEventListener("load", () => {
     listen();
     setTimeout(() => { if (!st.gotInfo) listen(); }, 1200);
@@ -4589,6 +4629,9 @@ function nkEmbedMedia(frame) {
     },
     get muted() { return st.muted; },
     set muted(v) { st.muted = !!v; cmd(st.muted ? "mute" : "unMute"); emit("volumechange"); },
+    get quality() { return st.quality; },
+    set quality(v) { st.quality = String(v || "auto"); cmd("setPlaybackQuality", [st.quality]); emit("qualitychange"); },
+    get qualityLevels() { return st.levels.slice(); },
     get playbackRate() { return st.rate; },
     set playbackRate(v) { st.rate = +v || 1; cmd("setPlaybackRate", [st.rate]); emit("ratechange"); },
     play() { cmd("playVideo"); return Promise.resolve(); },
@@ -4631,7 +4674,7 @@ function mountPlayer(mode, opt) {
       if (playlistNext()) return;
       const n = $("#side .rel-item"); if (S.settings.autoplay && n) n.click();
     });
-    nkYtControls(box, media, { noQuality: true });
+    nkYtControls(box, media, { embedQuality: true });
     keyBindings(media);
     return;
   }
