@@ -829,10 +829,10 @@ body.theater .watch{padding-bottom:80px}
 }
 
 /* --- 上部読み込みバー (YouTube 風) --- */
-#nprog{position:fixed;top:0;left:0;right:0;height:3px;z-index:300;pointer-events:none;opacity:0;transition:opacity .25s}
+#nprog{position:fixed;top:0;left:0;right:0;height:3px;z-index:300;pointer-events:none;opacity:0;transition:opacity .2s linear}
 #nprog.on{opacity:1}
-#nprog > i{display:block;height:100%;width:0;background:var(--brand);box-shadow:0 0 8px rgba(255,0,51,.7),0 0 3px rgba(255,0,51,.5);
-  transition:width .2s ease-out}
+#nprog > i{display:block;width:100%;height:100%;background:#f00;transform-origin:0 50%;transform:scaleX(0);will-change:transform;
+  box-shadow:0 0 6px rgba(255,0,0,.55)}
 /* --- ショート下部の再生プログレス --- */
 /* --- ショート下部の再生プログレス (YouTube 風の赤線) --- */
 .short .sh-prog{position:absolute;left:0;right:0;bottom:0;height:14px;z-index:7;display:flex;align-items:flex-end;
@@ -1639,6 +1639,23 @@ header{background:var(--bg)}
 .yt-vol:hover .yt-volr,.yt-vol:focus-within .yt-volr{width:84px;opacity:1;margin:0 8px 0 2px}
 .yt-time{font-size:13px;margin-left:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .yt-sp{flex:1}
+.yt-qwrap{position:relative;display:flex;align-items:center}
+.yt-qbtn{width:auto;gap:6px;padding:0 10px;border-radius:18px;font-size:14px;font-weight:500}
+.yt-qbtn svg{width:22px;height:22px}
+.yt-qlabel{white-space:nowrap}
+.yt-pop{position:absolute;right:0;bottom:calc(100% + 8px);min-width:210px;max-height:60vh;overflow:auto;background:rgba(28,28,28,.97);color:#f1f1f1;
+  border-radius:12px;padding:8px 0;box-shadow:0 8px 28px rgba(0,0,0,.5);z-index:20;font-size:14px;transform-origin:bottom right;
+  animation:yt-pop-in .16s cubic-bezier(.2,.8,.2,1)}
+.yt-pop[hidden]{display:none}
+@keyframes yt-pop-in{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:none}}
+.yt-pop-h{padding:8px 16px 6px;font-weight:600;color:#fff}
+.yt-pop-i{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;color:#f1f1f1;text-align:left;padding:9px 16px;cursor:pointer;font:inherit}
+.yt-pop-i:hover{background:rgba(255,255,255,.12)}
+.yt-pop-i.on{font-weight:600}
+.yt-chk{width:16px;flex:none;text-align:center}
+.yt-pop-e{padding:10px 16px;color:#aaa}
+@media (prefers-reduced-motion:reduce){.yt-pop{animation:none}}
+.setInput{min-width:240px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 
 /* シアターモード: 画面幅いっぱいのプレーヤー（サイドバーはミニ表示） */
 body.theater main{margin-left:var(--rail) !important;padding-left:0 !important;padding-right:0 !important}
@@ -1839,6 +1856,7 @@ function nkYtControls(box, vp) {
       '<span class="yt-time">0:00 / 0:00</span>' +
       '<span class="yt-sp"></span>' +
       '<button type="button" class="yt-b yt-txt yt-speed" aria-label="再生速度">1x</button>' +
+      '<div class="yt-qwrap"><button type="button" class="yt-b yt-txt yt-qbtn" aria-label="画質" aria-haspopup="true" aria-expanded="false" title="画質">' + '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg><span class="yt-qlabel">画質</span></button><div class="yt-pop" hidden></div></div>' +
       '<button type="button" class="yt-b yt-theater" aria-label="シアターモード" title="シアターモード (T)">' + nkSvg(NK_ICON.theater) + "</button>" +
       '<button type="button" class="yt-b yt-mini" aria-label="ミニプレーヤー" title="ミニプレーヤー (I)">' + nkSvg(NK_ICON.mini) + "</button>" +
       '<button type="button" class="yt-b yt-fs" aria-label="全画面" title="全画面 (F)">' + nkSvg(NK_ICON.full) + "</button>" +
@@ -1900,6 +1918,43 @@ function nkYtControls(box, vp) {
     vp.playbackRate = RATES[ri];
     speedBtn.textContent = RATES[ri] + "x";
   };
+
+  /* 画質メニュー（プレーヤー内）。選択肢は再生中の動画のストリーム一覧から作る */
+  const qbtn = q(".yt-qbtn"), qpop = q(".yt-pop");
+  const qsel = $("#qsel");
+  const qLabelSync = () => {
+    const lab = document.querySelector("#playerWrap .yt-qlabel");
+    const st = window.__nkysStreams || [];
+    const cur = qsel && st[+qsel.value];
+    if (lab) lab.textContent = cur ? String(cur.label).split(" ")[0] : "画質";
+  };
+  const qBuild = () => {
+    const st = window.__nkysStreams || [];
+    const cur = qsel ? +qsel.value : -1;
+    qpop.innerHTML = '<div class="yt-pop-h">画質</div>' + (st.length
+      ? st.map((s, i) => '<button type="button" class="yt-pop-i' + (i === cur ? " on" : "") + '" data-i="' + i + '"><span class="yt-chk">' + (i === cur ? "✓" : "") + "</span>" + esc(s.label) + "</button>").join("")
+      : '<div class="yt-pop-e">利用できる画質がありません</div>');
+  };
+  const qClose = () => { qpop.hidden = true; qbtn.setAttribute("aria-expanded", "false"); };
+  qbtn.onclick = (e) => {
+    e.stopPropagation();
+    if (qpop.hidden) { qBuild(); qpop.hidden = false; qbtn.setAttribute("aria-expanded", "true"); }
+    else qClose();
+  };
+  qpop.onclick = (e) => {
+    const b = e.target.closest("[data-i]");
+    if (!b || !qsel) return;
+    qsel.value = b.dataset.i;
+    qsel.dispatchEvent(new Event("change"));
+    qClose();
+  };
+  const qOutside = (e) => {
+    if (!ui.isConnected) { document.removeEventListener("click", qOutside); return; }
+    if (!ui.contains(e.target)) qClose();
+  };
+  document.addEventListener("click", qOutside);
+  if (qsel && !qsel.dataset.lblBound) { qsel.dataset.lblBound = "1"; qsel.addEventListener("change", qLabelSync); }
+  qLabelSync();
 
   /* 次の動画 / シアター / ミニプレーヤー / 全画面 */
   q(".yt-next").onclick = () => {
@@ -4200,13 +4255,13 @@ async function pageWatch(id, startAt) {
   const wrap = el("div", "watch");
   wrap.innerHTML = `
     <div>
-      <div class="nk-stage"><div class="nk-glow"><canvas id="nkGlow" width="64" height="36"></canvas></div><div id="playerWrap"></div></div>
+      <div class="nk-stage"><div class="nk-glow"><canvas id="nkGlow" width="64" height="36"></canvas></div><div id="playerWrap"></div><select id="qsel" hidden></select></div>
       <h1 id="vtitle" class="${known && known.title ? "" : "skel"}" style="min-height:24px;margin:12px 0 0;border-radius:6px">${known && known.title ? esc(known.title) : ""}</h1>
       <div class="owner">
         <div class="skel" style="width:40px;height:40px;border-radius:50%"></div>
         <div style="flex:1"><div class="skel" style="height:14px;width:140px;margin-bottom:6px"></div><div class="skel" style="height:12px;width:90px"></div></div>
         <div class="actions">
-          <select class="pill" id="qsel" title="画質" style="padding:0 10px"></select>
+          
           <div class="player-more-wrap">
             <button class="pill player-more" id="btnPlayerMore" type="button" aria-label="その他のプレイヤー操作" aria-expanded="false" title="その他">⋯</button>
             <div class="player-more-menu" id="playerMoreMenu" role="menu" hidden>
@@ -4293,7 +4348,7 @@ async function pageWatch(id, startAt) {
     if (!v.authorId && known.authorId) v.authorId = known.authorId;
     if (!v.description && known.description) v.description = known.description;
   }
-  const streams = pickStreams(v);
+  const streams = cobaltStreams(id, pickStreams(v));
   const subbed = S.subs.some((s) => s.id === v.authorId);
 
   $("#vtitle").outerHTML = `<h1 id="vtitle">${esc(v.title)}${isLive(v) ? '<span class="livechip">ライブ</span>' : ""}</h1>`;
@@ -4311,7 +4366,7 @@ async function pageWatch(id, startAt) {
         <button class="pill"><svg viewBox="0 0 24 24" style="transform:rotate(180deg)"><path d="M18.8 9H14V4.6L11 12v8h7l3-8.6zM3 12h4v8H3z"/></svg></button>
       </div>
       <button class="pill" id="btnShare" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z"/></svg>共有</button><button class="pill" id="btnSave" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>保存</button>
-      <select class="pill" id="qsel" title="画質" style="padding:0 10px"></select>
+      
       <div class="player-more-wrap">
         <button class="pill player-more" id="btnPlayerMore" type="button" aria-label="その他のプレイヤー操作" aria-expanded="false" title="その他">⋯</button>
         <div class="player-more-menu" id="playerMoreMenu" role="menu" hidden>
@@ -4329,7 +4384,7 @@ async function pageWatch(id, startAt) {
     </div>`;
   applyAuthorIcon($(".owner img.author-av"), v);
   const apiName = (src) => ({ omada: "INVIDIOUS", invidious: "INVIDIOUS", piped: "PIPED", worker: "WORKER", niv: "INVIDIOUS", siatube: "SIATUBE", yta: "YTAPI" })[src] || "不明";
-  const streamSource = streams.length ? apiName(v.__streamSource || v.__src) : (mode0 === "edu" ? "YOUTUBE EDUCATION" : "YOUTUBE NOCOOKIE");
+  const streamSource = streams.some((s) => s.lazy) ? "外部API" : streams.length ? apiName(v.__streamSource || v.__src) : (mode0 === "edu" ? "YOUTUBE EDUCATION" : "YOUTUBE NOCOOKIE");
   const infoSource = apiName(v.__infoSource || v.__src || (sia ? "siatube" : "unknown"));
   $("#desc").outerHTML = `<div id="desc"><div class="desc-top"><b>${fmtNum(v.viewCount)}回視聴・${esc(v.publishedText || ago(v.published))}</b><div class="desc-sources"><span id="infoApiBadge">情報API: ${infoSource}</span><span id="streamApiBadge">ストリームAPI: ${streamSource}</span></div></div><div class="desc-body">${v.description ? descriptionHtml(v.description) : '<span class="nk-muted">概要欄を読み込み中…</span>'}</div><button type="button" class="desc-more" aria-expanded="false">もっと見る</button></div>`;
   $("#commentHead").innerHTML = `<span>${fmtNum(v.commentCount || 0)} 件のコメント</span>`;
@@ -4344,6 +4399,7 @@ async function pageWatch(id, startAt) {
     const pref = S.settings.quality;
     if (pref !== "auto") { const i = streams.findIndex((s) => s.label.startsWith(pref)); if (i >= 0) start = i; }
     else if (S.settings.adaptive) { const i = streams.findIndex((s) => s.adaptive); if (i >= 0) start = i; }
+    else if (streams.some((s) => s.lazy)) { const i = streams.findIndex((s) => s.label.startsWith("720")); if (i >= 0) start = i; }
     qsel.value = String(start);
   }
 
@@ -4525,19 +4581,34 @@ function mountPlayer(mode, opt) {
     vp.addEventListener("loadedmetadata", seekOnce, { once: true });
   }
   if (opt.streams && opt.streams.length) {
-    let start = 0;
     const sel = $("#qsel");
-    if (sel && sel.value) start = +sel.value;
-    setSrc(vp, opt.streams[start]);
-    vp.addEventListener("error", () => {
-      if (opt.autoFallbackTried) return;
-      opt.autoFallbackTried = true;
+    const n = opt.streams.length;
+    let first = sel && sel.value ? +sel.value : 0;
+    if (!(first >= 0 && first < n)) first = 0;
+    /* 画質が失敗したら同じ一覧の次の候補へ、最後に YouTube 埋め込みへ */
+    const order = opt.streams.map((_, k) => (first + k) % n);
+    let step = 0, settled = false, fellBack = false;
+    const fallbackEmbed = () => {
+      if (fellBack || !vp.isConnected) return;
+      fellBack = true; opt.autoFallbackTried = true;
       toast("ストリーム再生に失敗したため Nocookie 再生に切り替えました");
-      $("#btnModeNocookie") && $("#btnModeNocookie").click();
-    }, { once: true });
+      window.__nkysSetMode && window.__nkysSetMode("nocookie");
+    };
+    const attempt = () => {
+      if (!vp.isConnected || settled) return;
+      if (step >= order.length) return fallbackEmbed();
+      const i = order[step++];
+      if (sel) sel.value = String(i);
+      setSrc(vp, opt.streams[i]).catch(attempt);
+    };
+    vp.addEventListener("loadeddata", () => { settled = true; }, { once: true });
+    vp.addEventListener("error", () => { if (!settled && vp.getAttribute("src")) attempt(); });
+    attempt();
   } else if (opt.v) {
     box.insertAdjacentHTML("beforeend",
-      '<div class="empty" style="position:absolute;inset:0;display:grid;place-items:center;color:#fff">ストリームを取得できませんでした</div>');
+      '<div class="empty nk-nostream" style="position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:12px;color:#fff">ストリームを取得できませんでした<button type="button" class="pill" data-nk-embed>埋め込みで再生</button></div>');
+    const eb = box.querySelector("[data-nk-embed]");
+    if (eb) eb.onclick = () => window.__nkysSetMode && window.__nkysSetMode("nocookie");
   }
   vp.addEventListener("ended", () => {
     if (S.settings.loop) { vp.currentTime = 0; vp.play().catch(() => {}); return; }
@@ -4583,17 +4654,68 @@ function wireModeToggle(id, v) {
   qsel && (qsel.onchange = () => {
     const vp = $("#vp"); if (!vp) return;
     const t = vp.currentTime, p = !vp.paused;
-    setSrc(vp, window.__nkysStreams[+qsel.value]); vp.currentTime = t; if (p) vp.play();
+    vp.addEventListener("loadedmetadata", () => { try { vp.currentTime = t; } catch (_) {} }, { once: true });
+    setSrc(vp, window.__nkysStreams[+qsel.value])
+      .then(() => { if (p) vp.play().catch(() => {}); })
+      .catch(() => toast("この画質は再生できませんでした"));
   });
   sync();
 }
 
 function setSrc(vp, s) {
-  if (!s) return;
-  vp.src = USE_PROXY ? px(s.url) : s.url;
-  vp.load();
-  if (S.settings.autoplay) vp.play().catch(() => {});
+  if (!s) return Promise.reject(new Error("no stream"));
+  const apply = (u) => {
+    vp.src = s.direct ? u : (USE_PROXY ? px(u) : u);
+    vp.load();
+    if (S.settings.autoplay) vp.play().catch(() => {});
+  };
+  if (s.url) { apply(s.url); return Promise.resolve(); }
+  if (typeof s.lazy === "function") return s.lazy().then((u) => { s.url = u; apply(u); });
+  return Promise.reject(new Error("no url"));
 }
+/* ---------------- 外部ストリーム API（cobalt 互換） ----------------
+   設定画面で API の URL（必要ならキー）を入れたときだけ有効。画質ごとに API を呼び、
+   返ってきた再生 URL を <video> に直接渡す。失敗した画質は自動で次の候補へ回す。 */
+const COB_QUALITIES = ["1080", "720", "480", "360"];
+const cobaltUrls = new Map();
+async function cobaltResolve(id, q) {
+  const base = String(S.settings.cobaltApi || "").trim().replace(/\/+$/, "");
+  if (!base) throw new Error("外部API 未設定");
+  const key = base + "|" + id + "|" + q;
+  if (cobaltUrls.has(key)) return cobaltUrls.get(key);
+  const headers = { Accept: "application/json", "Content-Type": "application/json" };
+  const apiKey = String(S.settings.cobaltKey || "").trim();
+  if (apiKey) headers.Authorization = "Api-Key " + apiKey;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 15000);
+  try {
+    const r = await fetch(base + "/", {
+      method: "POST", headers, signal: ctl.signal, referrerPolicy: "no-referrer",
+      body: JSON.stringify({ url: "https://www.youtube.com/watch?v=" + id, videoQuality: q, downloadMode: "auto" }),
+    });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j) throw new Error("外部API " + r.status);
+    let u = "";
+    if ((j.status === "tunnel" || j.status === "redirect") && j.url) u = j.url;
+    else if (j.status === "picker" && Array.isArray(j.picker)) {
+      const p = j.picker.find((x) => x && x.type === "video") || j.picker[0];
+      u = (p && p.url) || "";
+    }
+    if (!u) throw new Error("外部API " + (j.status || "error"));
+    cobaltUrls.set(key, u);
+    return u;
+  } finally { clearTimeout(timer); }
+}
+/* 外部APIの画質候補を、既存のストリーム一覧の前に並べる（API 未設定なら何もしない） */
+function cobaltStreams(id, streams) {
+  if (!String(S.settings.cobaltApi || "").trim() || !/^[A-Za-z0-9_-]{11}$/.test(String(id || ""))) return streams;
+  const entries = COB_QUALITIES.map((q) => ({
+    label: q + "p (外部API)", h: +q, direct: true, url: "",
+    lazy: () => cobaltResolve(id, q),
+  }));
+  return entries.concat(streams);
+}
+
 function pickStreams(v) {
   const out = [];
   (v.formatStreams || []).forEach((f) => {
@@ -6385,6 +6507,10 @@ function pageSettings() {
       '<select id="stShorts"><option value="nocookie"' + (S.shortsPlayer === "nocookie" ? " selected" : "") +
       '>YouTube</option><option value="stream"' + (S.shortsPlayer === "stream" ? " selected" : "") + ">ストリーム</option></select>") +
     "</div>" +
+    '<div class="setCard"><h2>ストリーム API（外部）</h2>' +
+    row("API の URL", "cobalt 互換 API の URL。空欄のときは使いません（例: 自分でホストしたインスタンス）", '<input type="text" id="stCobaltApi" class="setInput" placeholder="https://your-instance.example" value="' + esc(st.cobaltApi || "") + '" />') +
+    row("API キー", "インスタンスで認証を有効にしている場合のみ入力します。この端末のブラウザにだけ保存されます", '<input type="password" id="stCobaltKey" class="setInput" autocomplete="off" value="' + esc(st.cobaltKey || "") + '" />') +
+    "</div>" +
     '<div class="setCard"><h2>接続</h2>' +
     row("サーバープロキシ経由", "接続が不安定なときに有効にすると安定します", sw("stProxy", !!st.proxy)) +
     row("地域", "急上昇や検索結果の地域を指定します",
@@ -6417,6 +6543,8 @@ function pageSettings() {
   on("stRegion", (e) => { st.region = e.target.value; saveSettings(); cache.clear(); toast("地域を変更しました"); });
   on("stSaveSearches", (e) => { st.saveSearches = e.target.checked; saveSettings(); });
   on("stSaveHistory", (e) => { st.saveHistory = e.target.checked; saveSettings(); });
+  on("stCobaltApi", (e) => { st.cobaltApi = e.target.value.trim(); saveSettings(); cache.clear(); toast("外部ストリーム API を更新しました"); });
+  on("stCobaltKey", (e) => { st.cobaltKey = e.target.value.trim(); saveSettings(); });
   $("#stClearSearches", wrap).onclick = () => clearSearchHistory();
   $("#stClearHistory", wrap).onclick = () => clearWatchHistory();
   $("#stResetAll", wrap).onclick = () => {
@@ -6737,37 +6865,48 @@ function renderSubs() {
 
 /* ---------------- 上部読み込みバー ---------------- */
 const NP = (function () {
-  let bar, fill, timer = null, val = 0, active = 0;
+  /* 進捗は requestAnimationFrame で毎フレーム補間する（段階的に跳ねないようにする） */
+  let bar, fill, raf = 0, last = 0, cur = 0, goal = 0, active = 0, showT = 0, hideT = 0;
   function ensure() {
     if (bar) return;
     bar = document.createElement("div"); bar.id = "nprog";
     fill = document.createElement("i"); bar.appendChild(fill);
     document.body.appendChild(bar);
   }
-  function set(p) { val = p; ensure(); fill.style.width = val + "%"; }
+  function paint() { fill.style.transform = "scaleX(" + (cur / 100).toFixed(4) + ")"; }
+  function frame(now) {
+    raf = 0;
+    const dt = last ? Math.min(64, now - last) : 16;
+    last = now;
+    if (active > 0) goal += (90 - goal) * (dt / 6500);   /* 読み込み中はゆっくり 90% まで伸ばす */
+    else goal = 100;
+    cur += (goal - cur) * (1 - Math.exp(-dt / (active > 0 ? 300 : 90)));
+    paint();
+    if (active === 0 && cur > 99.5) {                      /* 完了: 100% まで伸ばしてからフェードアウト */
+      cur = 100; paint();
+      bar.classList.remove("on");
+      clearTimeout(hideT);
+      hideT = setTimeout(() => { cur = 0; goal = 0; paint(); }, 240);
+      return;
+    }
+    raf = requestAnimationFrame(frame);
+  }
+  function kick() { if (!raf) { last = 0; raf = requestAnimationFrame(frame); } }
   function start() {
     active++;
     if (active > 1) return;
     ensure();
-    bar.classList.add("on");
-    set(0);
-    requestAnimationFrame(() => set(12));
-    clearInterval(timer);
-    timer = setInterval(() => {
-      if (val < 92) set(val + Math.max(0.4, (94 - val) * 0.08));
-    }, 220);
+    clearTimeout(hideT); clearTimeout(showT);
+    if (!bar.classList.contains("on")) { cur = 0; goal = 8; paint(); }
+    /* 一瞬で終わる読み込みではバーを出さない（点滅防止） */
+    showT = setTimeout(() => { bar.classList.add("on"); kick(); }, 120);
   }
   function done(force) {
-    if (force) active = 0; else active = Math.max(0, active - 1);
+    active = force ? 0 : Math.max(0, active - 1);
     if (active > 0) return;
-    clearInterval(timer); timer = null;
-    if (!bar) return;
-    set(100);
-    setTimeout(() => {
-      if (active > 0) return;
-      bar.classList.remove("on");
-      setTimeout(() => { if (active === 0) set(0); }, 260);
-    }, 200);
+    clearTimeout(showT);
+    if (!bar || !bar.classList.contains("on")) return;
+    kick();
   }
   return { start, done };
 })();
