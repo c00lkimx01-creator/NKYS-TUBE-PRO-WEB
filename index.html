@@ -4255,7 +4255,7 @@ async function pageWatch(id, startAt) {
   const known = previewVideos.get(id) || (S.history || []).find((h) => vidOf(h) === id) ||
     (S.later || []).find((h) => vidOf(h) === id) || (S.liked || []).find((h) => vidOf(h) === id);
   const guessThumb = "https://i.ytimg.com/vi/" + encodeURIComponent(id) + "/hqdefault.jpg";
-  const mode0 = (S.settings.playerMode === "nocookie" || S.settings.playerMode === "edu" || S.settings.playerMode === "nocookie-ui") ? S.settings.playerMode : "stream";
+  const mode0 = ["nocookie", "edu", "nocookie-ui", "nocookie-native"].includes(S.settings.playerMode) ? S.settings.playerMode : "stream";
 
   const wrap = el("div", "watch");
   wrap.innerHTML = `
@@ -4277,7 +4277,7 @@ async function pageWatch(id, startAt) {
           </div>
         </div>
       </div>
-      <div id="desc"><div class="desc-top"><b>概要</b><div class="desc-sources"><span id="infoApiBadge">情報API: 取得中</span><span id="streamApiBadge">ストリームAPI: ${mode0 === "edu" ? "YOUTUBE EDUCATION" : (mode0 === "nocookie" || mode0 === "nocookie-ui") ? "YOUTUBE NOCOOKIE" : "取得中"}</span></div></div><div class="desc-body"></div></div>
+      <div id="desc"><div class="desc-top"><b>概要</b><div class="desc-sources"><span id="infoApiBadge">情報API: 取得中</span><span id="streamApiBadge">ストリームAPI: ${mode0 === "edu" ? "YOUTUBE EDUCATION" : (mode0 === "nocookie" || mode0 === "nocookie-ui" || mode0 === "nocookie-native") ? "YOUTUBE NOCOOKIE" : "取得中"}</span></div></div><div class="desc-body"></div></div>
       <div class="sechead" id="commentHead"><span>コメント</span></div>
       <div id="comments"><div class="spinner"></div></div>
     </div>
@@ -4382,8 +4382,8 @@ async function pageWatch(id, startAt) {
           <div class="pm-sep"></div>
           <div class="pm-label">再生方法</div>
           <button type="button" role="menuitem" data-player-action="mode-stream">ストリーム（高画質選択可）</button>
-          <button type="button" role="menuitem" data-player-action="mode-nocookie">Nocookie（YouTube 埋め込み）</button>
-          <button type="button" role="menuitem" data-player-action="mode-nkui">Nocookie + 独自UI（YouTube の操作を非表示）</button>
+          <button type="button" role="menuitem" data-player-action="mode-nocookie">Nocookie（独自UI・既定）</button>
+          <button type="button" role="menuitem" data-player-action="mode-nkui">Nocookie（YouTube 標準UI）</button>
           <button type="button" role="menuitem" data-player-action="mode-edu">EDU 再生（youtubeeducation）</button>
         </div>
       </div>
@@ -4485,7 +4485,7 @@ async function pageWatch(id, startAt) {
       if (item.dataset.playerAction === "pip") openPip();
       if (item.dataset.playerAction === "mode-stream") window.__nkysSetMode && window.__nkysSetMode("stream");
       if (item.dataset.playerAction === "mode-nocookie") window.__nkysSetMode && window.__nkysSetMode("nocookie");
-      if (item.dataset.playerAction === "mode-nkui") window.__nkysSetMode && window.__nkysSetMode("nocookie-ui");
+      if (item.dataset.playerAction === "mode-nkui") window.__nkysSetMode && window.__nkysSetMode("nocookie-native");
       if (item.dataset.playerAction === "mode-edu") window.__nkysSetMode && window.__nkysSetMode("edu");
       closePlayerMore();
     };
@@ -4604,7 +4604,7 @@ function mountPlayer(mode, opt) {
   box.dataset.mode = mode;
   box.innerHTML = "";
   window.__nkysEmbedTime = 0;
-  if (mode === "nocookie-ui" && opt.id) {
+  if ((mode === "nocookie" || mode === "nocookie-ui") && opt.id) {
     document.onkeydown = null;
     const f = el("iframe");
     f.id = "ytFrame"; f.allowFullscreen = true;
@@ -4649,7 +4649,7 @@ function mountPlayer(mode, opt) {
     });
     return;
   }
-  if (mode === "nocookie" && opt.id) {
+  if (mode === "nocookie-native" && opt.id) {
     document.onkeydown = null;
     const f = el("iframe");
     f.id = "ytFrame"; f.allowFullscreen = true;
@@ -4732,19 +4732,19 @@ function wireModeToggle(id, v) {
     const nI = document.querySelector('[data-player-action="mode-nocookie"]');
     const eI = document.querySelector('[data-player-action="mode-edu"]');
     const uI = document.querySelector('[data-player-action="mode-nkui"]');
-    if (uI) uI.classList.toggle("on", m === "nocookie-ui");
-    if (sI) sI.classList.toggle("on", !["nocookie", "edu", "nocookie-ui"].includes(m));
-    if (nI) nI.classList.toggle("on", m === "nocookie");
+    if (uI) uI.classList.toggle("on", m === "nocookie-native");
+    if (sI) sI.classList.toggle("on", !["nocookie", "edu", "nocookie-ui", "nocookie-native"].includes(m));
+    if (nI) nI.classList.toggle("on", m === "nocookie" || m === "nocookie-ui");
     if (eI) eI.classList.toggle("on", m === "edu");
-    if (qsel) qsel.style.display = (m === "nocookie" || m === "edu" || m === "nocookie-ui") ? "none" : "";
+    if (qsel) qsel.style.display = (m === "nocookie" || m === "edu" || m === "nocookie-ui" || m === "nocookie-native") ? "none" : "";
   };
   window.__nkysSetMode = (mode) => {
     if (mode === "edu") {
       S.settings.playerMode = "edu"; saveSettings();
       mountPlayer("edu", { id, v, start: curPlayTime() });
-    } else if (mode === "nocookie-ui") {
-      S.settings.playerMode = "nocookie-ui"; saveSettings();
-      mountPlayer("nocookie-ui", { id, v, start: curPlayTime() });
+    } else if (mode === "nocookie-native") {
+      S.settings.playerMode = "nocookie-native"; saveSettings();
+      mountPlayer("nocookie-native", { id, v, start: curPlayTime() });
     } else if (mode === "nocookie") {
       S.settings.playerMode = "nocookie"; saveSettings();
       mountPlayer("nocookie", { id, v, start: curPlayTime() });
@@ -6605,7 +6605,7 @@ function pageSettings() {
         '<option value="' + v + '"' + (st.quality === v ? " selected" : "") + ">" +
         (v === "auto" ? "自動（最速）" : v + "p") + "</option>").join("") + "</select>") +
     row("高画質モード", "映像と音声を別トラックで合成して高画質にします", sw("stAdaptive", !!st.adaptive)) +
-    row("再生ページを既定で YouTube 埋め込みにする", "ストリームが不安定なときに有効です", sw("stNocookie", st.playerMode === "nocookie")) +
+    row("再生ページを既定で Nocookie（独自UI）にする", "オフのときはストリーム再生になります", sw("stNocookie", st.playerMode === "nocookie")) +
     row("ショートの再生方法", "YouTube 埋め込みか直接ストリームを選べます",
       '<select id="stShorts"><option value="nocookie"' + (S.shortsPlayer === "nocookie" ? " selected" : "") +
       '>YouTube</option><option value="stream"' + (S.shortsPlayer === "stream" ? " selected" : "") + ">ストリーム</option></select>") +
@@ -7532,7 +7532,7 @@ document.addEventListener("scroll",function(){
     $("#cpMute").checked = !!S.settings.mute;
     const pw = document.querySelector("#playerWrap");
     const mode = (pw && pw.dataset.mode) || "";
-    const cur = (mode === "nocookie" || mode === "edu" || mode === "nocookie-ui") ? mode : "stream";
+    const cur = (mode === "nocookie" || mode === "edu" || mode === "nocookie-ui") ? mode : (mode === "nocookie-native" ? "" : "stream");
     panel.querySelectorAll('input[name="cpMode"]').forEach((r) => { r.checked = r.value === cur; });
     panel.querySelectorAll(".cp-radio").forEach((l) => l.classList.toggle("on", l.querySelector("input").checked));
     $("#cpStreamApi").value = S.settings.streamApi || "invidious";
@@ -7578,7 +7578,7 @@ document.addEventListener("scroll",function(){
   $("#cpLoop").addEventListener("change", (e) => {
     S.settings.loop = e.target.checked; saveSettings(); applyPlayPrefs();
     const pw = document.querySelector("#playerWrap");
-    if (pw && (pw.dataset.mode === "nocookie" || pw.dataset.mode === "edu" || pw.dataset.mode === "nocookie-ui")) {
+    if (pw && ["nocookie", "edu", "nocookie-ui", "nocookie-native"].includes(pw.dataset.mode)) {
       const frame = pw.querySelector("iframe#ytFrame");
       if (frame && frame.dataset.vid) {
         const mode = pw.dataset.mode;
