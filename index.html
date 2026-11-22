@@ -4,8 +4,8 @@
 <meta name="referrer" content="no-referrer">
 <script>(function(){try{var p=sessionStorage.getItem("spa-redirect");if(p){sessionStorage.removeItem("spa-redirect");history.replaceState(null,"",p);}}catch(e){}})();</script>
 <meta charset="utf-8" />
-<meta name="nkys-build" content="overlay-quality-v6" />
-<script>console.info("NKYS Tube Pro build: overlay-quality-v6");</script>
+<meta name="nkys-build" content="overlay-skip-v7" />
+<script>console.info("NKYS Tube Pro build: overlay-skip-v7");</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="color-scheme" content="dark light" />
 <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
@@ -1642,6 +1642,14 @@ header{background:var(--bg)}
 .yt-time{font-size:13px;margin-left:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .yt-sp{flex:1}
 .yt-shield{position:absolute;inset:0;z-index:4;cursor:pointer;background:transparent}
+.nk-skipfx{position:absolute;top:0;bottom:0;width:40%;z-index:4;display:flex;align-items:center;justify-content:center;pointer-events:none;
+  background:rgba(255,255,255,.12);animation:nk-skipfx .6s ease-out forwards}
+.nk-skipfx.left{left:0;border-radius:0 50% 50% 0 / 0 50% 50% 0}
+.nk-skipfx.right{right:0;border-radius:50% 0 0 50% / 50% 0 0 50%}
+.nk-skipfx-in{display:flex;flex-direction:column;align-items:center;gap:4px;color:#fff;font-size:14px;font-weight:600}
+.nk-skipfx-in svg{width:34px;height:34px;fill:#fff}
+@keyframes nk-skipfx{0%{opacity:0;transform:scale(.96)}18%{opacity:1;transform:none}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.nk-skipfx{animation:none;opacity:0}}
 .yt-qwrap{position:relative;display:flex;align-items:center}
 .yt-qbtn{width:auto;gap:6px;padding:0 10px;border-radius:18px;font-size:14px;font-weight:500}
 .yt-qbtn svg{width:22px;height:22px}
@@ -2000,6 +2008,37 @@ function nkYtControls(box, vp, opt) {
   if (qsel && !qsel.dataset.lblBound) { qsel.dataset.lblBound = "1"; qsel.addEventListener("change", qLabelSync); }
   qLabelSync();
   }
+
+  /* ダブルタップで 10 秒スキップ（左半分: 戻る / 右半分: 進む）。操作バー上のタップは対象外 */
+  let lastTapAt = 0, lastTapSide = "";
+  const skipBy = (sec) => {
+    const dur = vp.duration > 0 ? vp.duration : Infinity;
+    const t = Math.min(dur, Math.max(0, (vp.currentTime || 0) + sec));
+    try { vp.currentTime = t; } catch (_) {}
+    if (typeof vp.dispatchEvent === "function") vp.dispatchEvent(new Event("timeupdate"));
+  };
+  const skipFlash = (side, sec) => {
+    const fx = document.createElement("div");
+    fx.className = "nk-skipfx " + side;
+    const icon = side === "left" ? "M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z" : "M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z";
+    fx.innerHTML = '<div class="nk-skipfx-in">' + nkSvg(icon) + "<span>" + Math.abs(sec) + "秒</span></div>";
+    box.appendChild(fx);
+    setTimeout(() => fx.remove(), 650);
+  };
+  box.addEventListener("click", (e) => {
+    if (e.target.closest && e.target.closest(".yt-ctrl")) return;
+    const r = box.getBoundingClientRect();
+    const side = (e.clientX - r.left) < r.width / 2 ? "left" : "right";
+    const now = Date.now();
+    if (side === lastTapSide && now - lastTapAt < 350) {
+      lastTapAt = 0; lastTapSide = "";
+      const sec = side === "left" ? -10 : 10;
+      skipBy(sec);
+      skipFlash(side, sec);
+    } else {
+      lastTapAt = now; lastTapSide = side;
+    }
+  });
 
   /* 次の動画 / シアター / ミニプレーヤー / 全画面 */
   q(".yt-next").onclick = () => {
