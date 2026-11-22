@@ -4,8 +4,8 @@
 <meta name="referrer" content="no-referrer">
 <script>(function(){try{var p=sessionStorage.getItem("spa-redirect");if(p){sessionStorage.removeItem("spa-redirect");history.replaceState(null,"",p);}}catch(e){}})();</script>
 <meta charset="utf-8" />
-<meta name="nkys-build" content="overlay-skip-v7" />
-<script>console.info("NKYS Tube Pro build: overlay-skip-v7");</script>
+<meta name="nkys-build" content="overlay-motion-v8" />
+<script>console.info("NKYS Tube Pro build: overlay-motion-v8");</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="color-scheme" content="dark light" />
 <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
@@ -1642,14 +1642,42 @@ header{background:var(--bg)}
 .yt-time{font-size:13px;margin-left:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .yt-sp{flex:1}
 .yt-shield{position:absolute;inset:0;z-index:4;cursor:pointer;background:transparent}
-.nk-skipfx{position:absolute;top:0;bottom:0;width:40%;z-index:4;display:flex;align-items:center;justify-content:center;pointer-events:none;
-  background:rgba(255,255,255,.12);animation:nk-skipfx .6s ease-out forwards}
-.nk-skipfx.left{left:0;border-radius:0 50% 50% 0 / 0 50% 50% 0}
-.nk-skipfx.right{right:0;border-radius:50% 0 0 50% / 50% 0 0 50%}
-.nk-skipfx-in{display:flex;flex-direction:column;align-items:center;gap:4px;color:#fff;font-size:14px;font-weight:600}
-.nk-skipfx-in svg{width:34px;height:34px;fill:#fff}
-@keyframes nk-skipfx{0%{opacity:0;transform:scale(.96)}18%{opacity:1;transform:none}100%{opacity:0}}
-@media (prefers-reduced-motion:reduce){.nk-skipfx{animation:none;opacity:0}}
+/* ---- 独自UI: 操作バーのモーション ---- */
+#playerWrap .yt-ctrl{transform:translateY(12px);transition:opacity .25s ease,transform .35s cubic-bezier(.2,.8,.2,1)}
+#playerWrap.nk-ui .yt-ctrl,#playerWrap.paused .yt-ctrl,#playerWrap:hover .yt-ctrl,#playerWrap:focus-within .yt-ctrl{opacity:1;transform:none}
+.yt-b{transition:background-color .15s ease,transform .12s ease}
+.yt-b:active{transform:scale(.86)}
+.yt-b svg{animation:nk-icon-in .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes nk-icon-in{from{transform:scale(.55) rotate(-14deg);opacity:.2}to{transform:none;opacity:1}}
+.yt-txt.nk-tpop{animation:nk-tpop .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes nk-tpop{0%{transform:scale(.8)}60%{transform:scale(1.12)}100%{transform:none}}
+.yt-played{transition:width .2s linear}
+/* ---- 中央の再生 / 一時停止アイコン ---- */
+.nk-center-fx{position:absolute;left:50%;top:50%;width:72px;height:72px;margin:-36px 0 0 -36px;border-radius:50%;background:rgba(0,0,0,.6);
+  display:grid;place-items:center;z-index:4;pointer-events:none;animation:nk-center .7s ease-out forwards}
+.nk-center-fx svg{width:38px;height:38px;fill:#fff}
+@keyframes nk-center{0%{opacity:0;transform:scale(.5)}18%{opacity:1;transform:scale(1.08)}32%{transform:scale(1)}72%{opacity:1}100%{opacity:0;transform:scale(1.18)}}
+/* ---- バッファリング ---- */
+.nk-buf{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;z-index:4;pointer-events:none;opacity:0;transform:scale(.8);
+  transition:opacity .2s ease,transform .2s ease}
+.nk-buf i{display:block;width:100%;height:100%;border-radius:50%;border:3px solid rgba(255,255,255,.22);border-top-color:#fff;animation:spin .8s linear infinite}
+#playerWrap.nk-buffering .nk-buf{opacity:1;transform:none}
+/* ---- スキップ: 波紋 + アイコン + 累計秒数 ---- */
+.nk-skipfx{position:absolute;top:0;bottom:0;width:44%;z-index:4;overflow:hidden;pointer-events:none;display:flex;align-items:center;justify-content:center;transition:opacity .3s ease}
+.nk-skipfx.left{left:0}
+.nk-skipfx.right{right:0}
+.nk-skipfx.out{opacity:0}
+.nk-skipfx-ring{position:absolute;left:50%;top:50%;width:150%;aspect-ratio:1;border-radius:50%;background:rgba(255,255,255,.16);transform:translate(-50%,-50%) scale(0);opacity:0}
+.nk-skipfx.hit .nk-skipfx-ring{animation:nk-ring .6s cubic-bezier(.2,.7,.2,1) forwards}
+@keyframes nk-ring{0%{transform:translate(-50%,-50%) scale(.1);opacity:0}20%{opacity:1}100%{transform:translate(-50%,-50%) scale(1);opacity:0}}
+.nk-skipfx-in{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;color:#fff;font-size:14px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.nk-skipfx-ic svg{width:44px;height:44px;fill:#fff;display:block}
+.nk-skipfx.hit .nk-skipfx-ic svg{animation:nk-skip-ic .5s cubic-bezier(.2,.8,.2,1)}
+@keyframes nk-skip-ic{0%{transform:scale(.6);opacity:0}35%{transform:scale(1.12);opacity:1}100%{transform:none;opacity:1}}
+.nk-skipfx.hit .nk-skipfx-in span{animation:nk-tpop .3s cubic-bezier(.2,.8,.2,1)}
+@media (prefers-reduced-motion:reduce){
+  .nk-skipfx *,.nk-center-fx,.nk-buf i,.yt-b svg,.yt-txt.nk-tpop,#playerWrap .yt-ctrl{animation:none !important;transition:none !important}
+}
 .yt-qwrap{position:relative;display:flex;align-items:center}
 .yt-qbtn{width:auto;gap:6px;padding:0 10px;border-radius:18px;font-size:14px;font-weight:500}
 .yt-qbtn svg{width:22px;height:22px}
@@ -1857,6 +1885,22 @@ const nkFmtTime = (s) => {
 /* <video> にYouTube風のコントロールバーを付ける（ネイティブ操作UIは使わない） */
 /* 埋め込み(nocookie)用の画質メニュー。YouTube が返す候補だけを出し、実際の画質をラベルに反映する */
 const NK_QLABEL = { hd2160: "2160p", hd1440: "1440p", hd1080: "1080p", hd720: "720p", large: "480p", medium: "360p", small: "240p", tiny: "144p", auto: "自動", default: "自動" };
+/* YouTube 埋め込みが画質指定を受け付けなかったとき、近い画質のストリーム再生に切り替える */
+function nkQualityFallback(want) {
+  const H = { hd2160: 2160, hd1440: 1440, hd1080: 1080, hd720: 720, large: 480, medium: 360, small: 240, tiny: 144 };
+  const h = H[want] || 0;
+  const streams = window.__nkysStreams || [];
+  if (!h || !streams.length || !window.__nkysSetMode) {
+    toast("この動画の画質は YouTube 埋め込みでは変更できません");
+    return;
+  }
+  let best = 0, bestDiff = Infinity;
+  streams.forEach((s, i) => { const d = Math.abs((s.h || 0) - h); if (d < bestDiff) { bestDiff = d; best = i; } });
+  const sel = $("#qsel");
+  if (sel) sel.value = String(best);
+  toast("YouTube 埋め込みでは画質を変えられないため、ストリーム再生に切り替えます");
+  window.__nkysSetMode("stream");
+}
 function embedQualityMenu(ui, vp) {
   const qbtn = ui.querySelector(".yt-qbtn"), qpop = ui.querySelector(".yt-pop"), qlabel = ui.querySelector(".yt-qlabel");
   if (!qbtn || !qpop || !qlabel) return;
@@ -1876,11 +1920,19 @@ function embedQualityMenu(ui, vp) {
     if (qpop.hidden) { build(); qpop.hidden = false; qbtn.setAttribute("aria-expanded", "true"); }
     else close();
   };
+  let qFallbackT = 0;
   qpop.onclick = (e) => {
     const b = e.target.closest("[data-q]");
     if (!b) return;
-    vp.quality = b.dataset.q;
+    const want = b.dataset.q;
+    vp.quality = want;
     close(); sync();
+    if (want !== "auto") {
+      clearTimeout(qFallbackT);
+      qFallbackT = setTimeout(() => {
+        if ((vp.quality || "auto") !== want) nkQualityFallback(want);
+      }, 2200);
+    }
   };
   const outside = (e) => {
     if (!ui.isConnected) { document.removeEventListener("click", outside); return; }
@@ -1915,10 +1967,26 @@ function nkYtControls(box, vp, opt) {
   const timeEl = q(".yt-time"), playBtn = q(".yt-play"), muteBtn = q(".yt-mute"), volR = q(".yt-volr");
   const fsBtn = q(".yt-fs"), speedBtn = q(".yt-speed");
 
+  const centerFx = (icon) => {
+    const fx = document.createElement("div");
+    fx.className = "nk-center-fx";
+    fx.innerHTML = nkSvg(icon);
+    box.appendChild(fx);
+    setTimeout(() => fx.remove(), 700);
+  };
   const togglePlay = () => {
-    if (vp.paused) { const p = vp.play(); if (p && p.catch) p.catch(() => {}); }
+    const resume = vp.paused;
+    centerFx(resume ? NK_ICON.play : NK_ICON.pause);
+    if (resume) { const p = vp.play(); if (p && p.catch) p.catch(() => {}); }
     else vp.pause();
   };
+  /* バッファリング中のくるくる表示 */
+  const bufEl = document.createElement("div");
+  bufEl.className = "nk-buf"; bufEl.innerHTML = "<i></i>";
+  box.appendChild(bufEl);
+  vp.addEventListener("waiting", () => box.classList.add("nk-buffering"));
+  ["playing", "pause", "canplay", "ended", "emptied"].forEach((ev) => vp.addEventListener(ev, () => box.classList.remove("nk-buffering")));
+
   const paint = () => {
     const d = vp.duration || 0, t = vp.currentTime || 0;
     const pct = d ? Math.min(100, (t / d) * 100) : 0;
@@ -1930,9 +1998,11 @@ function nkYtControls(box, vp, opt) {
       }
     } catch (_) {}
     timeEl.textContent = nkFmtTime(t) + " / " + nkFmtTime(d);
-    muteBtn.innerHTML = nkSvg(vp.muted || vp.volume === 0 ? NK_ICON.mute : NK_ICON.vol);
+    const mIc = vp.muted || vp.volume === 0 ? NK_ICON.mute : NK_ICON.vol;
+    if (muteBtn.dataset.ic !== mIc) { muteBtn.dataset.ic = mIc; muteBtn.innerHTML = nkSvg(mIc); }
     volR.value = vp.muted ? 0 : vp.volume;
-    playBtn.innerHTML = nkSvg(vp.paused ? NK_ICON.play : NK_ICON.pause);
+    const pIc = vp.paused ? NK_ICON.play : NK_ICON.pause;
+    if (playBtn.dataset.ic !== pIc) { playBtn.dataset.ic = pIc; playBtn.innerHTML = nkSvg(pIc); }
     box.classList.toggle("paused", vp.paused);
   };
 
@@ -1964,6 +2034,7 @@ function nkYtControls(box, vp, opt) {
     ri = (ri + 1) % RATES.length;
     vp.playbackRate = RATES[ri];
     speedBtn.textContent = RATES[ri] + "x";
+    speedBtn.classList.remove("nk-tpop"); void speedBtn.offsetWidth; speedBtn.classList.add("nk-tpop");
   };
 
   const noQ = !!(opt && opt.noQuality);
@@ -2017,13 +2088,28 @@ function nkYtControls(box, vp, opt) {
     try { vp.currentTime = t; } catch (_) {}
     if (typeof vp.dispatchEvent === "function") vp.dispatchEvent(new Event("timeupdate"));
   };
+  const SKIP_ICON = { left: "M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z", right: "M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z" };
+  let fxEl = null, fxSide = "", fxTotal = 0, fxTimer = 0;
   const skipFlash = (side, sec) => {
-    const fx = document.createElement("div");
-    fx.className = "nk-skipfx " + side;
-    const icon = side === "left" ? "M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z" : "M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z";
-    fx.innerHTML = '<div class="nk-skipfx-in">' + nkSvg(icon) + "<span>" + Math.abs(sec) + "秒</span></div>";
-    box.appendChild(fx);
-    setTimeout(() => fx.remove(), 650);
+    if (!fxEl || !fxEl.isConnected || fxSide !== side || fxEl.classList.contains("out")) {
+      if (fxEl) fxEl.remove();
+      fxEl = document.createElement("div");
+      fxEl.className = "nk-skipfx " + side;
+      fxEl.innerHTML = '<div class="nk-skipfx-ring"></div><div class="nk-skipfx-in"><div class="nk-skipfx-ic"></div><span></span></div>';
+      box.appendChild(fxEl);
+      fxSide = side; fxTotal = 0;
+    }
+    fxTotal += Math.abs(sec);
+    fxEl.querySelector("span").textContent = fxTotal + "秒";
+    fxEl.querySelector(".nk-skipfx-ic").innerHTML = nkSvg(SKIP_ICON[side]);
+    fxEl.classList.remove("hit"); void fxEl.offsetWidth; fxEl.classList.add("hit");
+    clearTimeout(fxTimer);
+    const cur = fxEl;
+    fxTimer = setTimeout(() => {
+      cur.classList.add("out");
+      setTimeout(() => cur.remove(), 320);
+      if (fxEl === cur) fxEl = null;
+    }, 800);
   };
   box.addEventListener("click", (e) => {
     if (e.target.closest && e.target.closest(".yt-ctrl")) return;
@@ -4643,6 +4729,7 @@ function nkEmbedMedia(frame) {
     if (typeof i.playerState === "number" && i.playerState !== st.state) {
       st.state = i.playerState;
       emit(st.state === 1 ? "play" : st.state === 2 ? "pause" : st.state === 0 ? "ended" : "waiting");
+      if (st.state === 1) emit("playing");
     }
     emit("timeupdate");
   };
