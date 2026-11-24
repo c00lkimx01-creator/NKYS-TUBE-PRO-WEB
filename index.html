@@ -1719,6 +1719,93 @@ html{color-scheme:dark}
   .ghost-short,.short-card .sc-thumb{height:355px}
 }
 </style>
+
+<style id="nkys-v4-ui">
+/* ---- ロゴ右上の小さな JP ---- */
+.logo{position:relative}
+.jp-mark{position:absolute;top:-2px;right:-14px;font-size:9px;line-height:1;color:var(--fg-dim,#aaa);font-weight:500;letter-spacing:.02em;pointer-events:none}
+
+/* ---- 動画タイトル・チャンネル行（画像準拠） ---- */
+body.is-watch h1#vtitle{font-size:20px;font-weight:600;line-height:1.4;margin:10px 0 12px;letter-spacing:0}
+body.is-watch .owner{gap:12px;align-items:center}
+body.is-watch .owner .oname{font-size:16px;font-weight:600}
+body.is-watch .owner .osub{font-size:12px;color:var(--fg-dim,#aaa);margin-top:2px}
+body.is-watch #btnSub{height:36px;padding:0 16px;border-radius:18px;font-size:14px;font-weight:600}
+body.is-watch #btnSub:not(.solid){background:var(--chip,#272727);color:var(--fg,#f1f1f1)}
+body.is-watch #btnSub.solid{background:#f1f1f1;color:#0f0f0f}
+:root[data-theme="light"] body.is-watch #btnSub.solid{background:#0f0f0f;color:#fff}
+body.is-watch .owner .actions{gap:8px}
+body.is-watch .owner .pillgroup{background:var(--chip,#272727);border-radius:18px;height:36px}
+body.is-watch .owner .pillgroup .pill{height:36px}
+body.is-watch .owner .actions > .pill{height:36px;border-radius:18px;background:var(--chip,#272727);padding:0 14px}
+body.is-watch .owner .actions > .pill svg{width:20px;height:20px}
+body.is-watch .owner .actions .pillgroup .sep{background:var(--line,rgba(255,255,255,.2));width:1px;margin:8px 0}
+
+/* ---- 概要欄（角丸の灰色ボックス・統計行） ---- */
+body.is-watch #desc{background:var(--chip,#272727);border-radius:12px;padding:12px 14px 10px;margin-top:12px}
+body.is-watch #desc .desc-top{display:none}
+body.is-watch .nk-desc-stats{font-size:14px;line-height:1.5;margin-bottom:4px;display:block}
+body.is-watch .nk-desc-stats .nk-hp{display:inline;white-space:nowrap}
+#desc .nk-desc-stats b{font-weight:600;display:inline !important;margin:0}
+#desc .nk-desc-stats{white-space:normal !important}
+body.is-watch .nk-hp{font-weight:600;margin-left:6px}
+body.is-watch #desc .desc-body{font-size:14px;line-height:1.6;margin-top:0}
+
+/* ---- コメント見出し ---- */
+body.is-watch #commentHead,.watch #commentHead{font-size:20px;font-weight:600}
+
+/* ---- 関連動画（画像準拠: 大きめのサムネ＋右側にタイトル・チャンネル・再生数） ---- */
+.rel-item{gap:12px;margin-bottom:10px}
+.rel-item .thumb{width:246px;flex:none;aspect-ratio:16/9;height:auto}
+.rel-item .thumb img{width:100%;height:100%;object-fit:cover}
+.rel-item .meta{flex:1;min-width:0}
+.rel-item .mtitle{font-size:15px;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0}
+.rel-item .related-channel{font-size:12px;margin-top:4px}
+.rel-item .msub{font-size:12px;color:var(--fg-dim,#aaa);margin-top:3px;line-height:1.4}
+.rel-item .msub:not(.related-channel)::before{content:"▷ ";font-size:10px}
+.rel-item .dur{font-size:12px;font-weight:600;padding:2px 5px;border-radius:4px;background:rgba(0,0,0,.85);color:#fff;right:6px;bottom:6px}
+.rel-item .dur.live{background:#e00;color:#fff}
+@media (max-width:1100px){ .rel-item .thumb{width:168px} }
+
+/* ---- ミニプレイヤー（フローティング・独自UI） ---- */
+#playerWrap.nk-mini{position:fixed !important;top:auto;left:auto;right:18px;bottom:18px;width:360px !important;height:auto !important;aspect-ratio:16/9;z-index:950;border-radius:12px !important;box-shadow:0 12px 36px rgba(0,0,0,.6);background:#000;overflow:hidden}
+#playerWrap.nk-mini video{border-radius:12px}
+.nk-stage.nk-mini-hold{height:auto;aspect-ratio:16/9;background:#000}
+.nk-mini-bar{display:none;position:absolute;top:0;left:0;right:0;z-index:7;align-items:center;gap:4px;padding:6px 6px 20px;background:linear-gradient(rgba(0,0,0,.8),rgba(0,0,0,0));color:#fff;cursor:move;touch-action:none;user-select:none}
+#playerWrap.nk-mini .nk-mini-bar{display:flex}
+.nk-mini-title{flex:1;min-width:0;padding:0 6px;font-size:13px;font-weight:600;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nk-mini-btn{width:32px;height:32px;flex:none;border:0;border-radius:50%;background:transparent;color:#fff;display:grid;place-items:center;cursor:pointer;padding:0}
+.nk-mini-btn:hover{background:rgba(255,255,255,.18)}
+.nk-mini-btn svg{width:20px;height:20px;fill:#fff;display:block}
+#playerWrap.nk-mini .yt-ctrl{padding:18px 6px 2px}
+#playerWrap.nk-mini .yt-row{height:38px;gap:0}
+#playerWrap.nk-mini .yt-b{width:32px;height:32px}
+#playerWrap.nk-mini .yt-b svg{width:22px;height:22px}
+#playerWrap.nk-mini .yt-theater,#playerWrap.nk-mini .yt-speed,#playerWrap.nk-mini .yt-qwrap,#playerWrap.nk-mini .yt-next,#playerWrap.nk-mini .yt-ccwrap,#playerWrap.nk-mini .yt-auto,#playerWrap.nk-mini .yt-mini,#playerWrap.nk-mini .yt-golive{display:none !important}
+#playerWrap.nk-mini .yt-volr{width:56px}
+#playerWrap.nk-mini .yt-time{font-size:11px}
+#playerWrap.nk-mini .yt-prog{height:12px}
+#playerWrap.nk-mini .nk-cc-text{font-size:13px;bottom:56px}
+#playerWrap.nk-mini.nk-ui .nk-cc-text,#playerWrap.nk-mini.paused .nk-cc-text{bottom:60px}
+#playerWrap.nk-mini .nk-skipfx{transform:scale(.6)}
+@media (max-width:840px){ #playerWrap.nk-mini{width:min(280px,calc(100vw - 24px)) !important;right:12px;bottom:12px} }
+
+/* ---- ライブ用の再生UI ---- */
+.yt-golive{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;margin-left:8px;border:0;border-radius:15px;background:rgba(255,255,255,.2);color:#fff;font-size:12px;font-weight:600;cursor:pointer;flex:none;font-family:inherit}
+.yt-golive:hover{background:rgba(255,255,255,.3)}
+.yt-golive[hidden]{display:none}
+.yt-golive i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#9a9a9a}
+.yt-golive.on{background:rgba(255,255,255,.2);color:#fff}
+.yt-golive.on i{background:#f00;box-shadow:0 0 0 3px rgba(255,0,0,.25)}
+#playerWrap.nk-live .yt-time{color:#fff}
+#playerWrap .yt-time.lv-now::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#f00;margin-right:6px;vertical-align:middle}
+#playerWrap.nk-live .yt-prog{cursor:pointer}
+#playerWrap.nk-live .yt-played{background:#f00}
+#playerWrap.nk-live .yt-prog-bar{background:rgba(255,255,255,.3)}
+#playerWrap.nk-live .yt-buf{background:rgba(255,255,255,.3)}
+#playerWrap.nk-live .yt-knob{background:#f00}
+#playerWrap.nk-mini .yt-golive{display:none !important}
+</style>
 </head>
 <style id="nk-yt-theme">
 /* ===== NKYS Tube Pro: YouTube風テーマ（v2 上書き） ===== */
@@ -1877,7 +1964,7 @@ body.is-watch #cpFab{top:72px !important;bottom:auto !important}
 <header>
   <div class="hleft">
     <button class="icobtn" id="btnMenu" aria-label="メニュー"><svg viewBox="0 0 24 24"><path d="M21,6H3V5h18V6z M21,11H3v1h18V11z M21,17H3v1h18V17z"/></svg></button>
-    <div class="logo" data-nav="home" aria-label="ホーム" title="ホーム"><svg xmlns="http://www.w3.org/2000/svg" id="yt-ringo2-svg_yt2" class="ytlogo" width="93" height="20" viewBox="0 0 93 20" focusable="false" aria-hidden="true"><g><path d="M14.4848 20C14.4848 20 23.5695 20 25.8229 19.4C27.0917 19.06 28.0459 18.08 28.3808 16.87C29 14.65 29 9.98 29 9.98C29 9.98 29 5.34 28.3808 3.14C28.0459 1.9 27.0917 0.94 25.8229 0.61C23.5695 0 14.4848 0 14.4848 0C14.4848 0 5.42037 0 3.17711 0.61C1.9286 0.94 0.954148 1.9 0.59888 3.14C0 5.34 0 9.98 0 9.98C0 9.98 0 14.65 0.59888 16.87C0.954148 18.08 1.9286 19.06 3.17711 19.4C5.42037 20 14.4848 20 14.4848 20Z" fill="#FF0033"></path><path d="M19 10L11.5 5.75V14.25L19 10Z" fill="white"></path></g><g id="youtube-paths_yt2"><path d="M37.1384 18.8999V13.4399L40.6084 2.09994H38.0184L36.6984 7.24994C36.3984 8.42994 36.1284 9.65994 35.9284 10.7999H35.7684C35.6584 9.79994 35.3384 8.48994 35.0184 7.22994L33.7384 2.09994H31.1484L34.5684 13.4399V18.8999H37.1384Z"></path><path d="M44.1003 6.29994C41.0703 6.29994 40.0303 8.04994 40.0303 11.8199V13.6099C40.0303 16.9899 40.6803 19.1099 44.0403 19.1099C47.3503 19.1099 48.0603 17.0899 48.0603 13.6099V11.8199C48.0603 8.44994 47.3803 6.29994 44.1003 6.29994ZM45.3903 14.7199C45.3903 16.3599 45.1003 17.3899 44.0503 17.3899C43.0203 17.3899 42.7303 16.3499 42.7303 14.7199V10.6799C42.7303 9.27994 42.9303 8.02994 44.0503 8.02994C45.2303 8.02994 45.3903 9.34994 45.3903 10.6799V14.7199Z"></path><path d="M52.2713 19.0899C53.7313 19.0899 54.6413 18.4799 55.3913 17.3799H55.5013L55.6113 18.8999H57.6012V6.53994H54.9613V16.4699C54.6812 16.9599 54.0312 17.3199 53.4212 17.3199C52.6512 17.3199 52.4113 16.7099 52.4113 15.6899V6.53994H49.7812V15.8099C49.7812 17.8199 50.3613 19.0899 52.2713 19.0899Z"></path><path d="M62.8261 18.8999V4.14994H65.8661V2.09994H57.1761V4.14994H60.2161V18.8999H62.8261Z"></path><path d="M67.8728 19.0899C69.3328 19.0899 70.2428 18.4799 70.9928 17.3799H71.1028L71.2128 18.8999H73.2028V6.53994H70.5628V16.4699C70.2828 16.9599 69.6328 17.3199 69.0228 17.3199C68.2528 17.3199 68.0128 16.7099 68.0128 15.6899V6.53994H65.3828V15.8099C65.3828 17.8199 65.9628 19.0899 67.8728 19.0899Z"></path><path d="M80.6744 6.26994C79.3944 6.26994 78.4744 6.82994 77.8644 7.73994H77.7344C77.8144 6.53994 77.8744 5.51994 77.8744 4.70994V1.43994H75.3244L75.3144 12.1799L75.3244 18.8999H77.5444L77.7344 17.6999H77.8044C78.3944 18.5099 79.3044 19.0199 80.5144 19.0199C82.5244 19.0199 83.3844 17.2899 83.3844 13.6099V11.6999C83.3844 8.25994 82.9944 6.26994 80.6744 6.26994ZM80.7644 13.6099C80.7644 15.9099 80.4244 17.2799 79.3544 17.2799C78.8544 17.2799 78.1644 17.0399 77.8544 16.5899V9.23994C78.1244 8.53994 78.7244 8.02994 79.3944 8.02994C80.4744 8.02994 80.7644 9.33994 80.7644 11.7299V13.6099Z"></path><path d="M92.6517 11.4999C92.6517 8.51994 92.3517 6.30994 88.9217 6.30994C85.6917 6.30994 84.9717 8.45994 84.9717 11.6199V13.7899C84.9717 16.8699 85.6317 19.1099 88.8417 19.1099C91.3817 19.1099 92.6917 17.8399 92.5417 15.3799L90.2917 15.2599C90.2617 16.7799 89.9117 17.3999 88.9017 17.3999C87.6317 17.3999 87.5717 16.1899 87.5717 14.3899V13.5499H92.6517V11.4999ZM88.8617 7.96994C90.0817 7.96994 90.1717 9.11994 90.1717 11.0699V12.0799H87.5717V11.0699C87.5717 9.13994 87.6517 7.96994 88.8617 7.96994Z"></path></g></svg></div>
+    <div class="logo" data-nav="home" aria-label="ホーム" title="ホーム"><svg xmlns="http://www.w3.org/2000/svg" id="yt-ringo2-svg_yt2" class="ytlogo" width="93" height="20" viewBox="0 0 93 20" focusable="false" aria-hidden="true"><g><path d="M14.4848 20C14.4848 20 23.5695 20 25.8229 19.4C27.0917 19.06 28.0459 18.08 28.3808 16.87C29 14.65 29 9.98 29 9.98C29 9.98 29 5.34 28.3808 3.14C28.0459 1.9 27.0917 0.94 25.8229 0.61C23.5695 0 14.4848 0 14.4848 0C14.4848 0 5.42037 0 3.17711 0.61C1.9286 0.94 0.954148 1.9 0.59888 3.14C0 5.34 0 9.98 0 9.98C0 9.98 0 14.65 0.59888 16.87C0.954148 18.08 1.9286 19.06 3.17711 19.4C5.42037 20 14.4848 20 14.4848 20Z" fill="#FF0033"></path><path d="M19 10L11.5 5.75V14.25L19 10Z" fill="white"></path></g><g id="youtube-paths_yt2"><path d="M37.1384 18.8999V13.4399L40.6084 2.09994H38.0184L36.6984 7.24994C36.3984 8.42994 36.1284 9.65994 35.9284 10.7999H35.7684C35.6584 9.79994 35.3384 8.48994 35.0184 7.22994L33.7384 2.09994H31.1484L34.5684 13.4399V18.8999H37.1384Z"></path><path d="M44.1003 6.29994C41.0703 6.29994 40.0303 8.04994 40.0303 11.8199V13.6099C40.0303 16.9899 40.6803 19.1099 44.0403 19.1099C47.3503 19.1099 48.0603 17.0899 48.0603 13.6099V11.8199C48.0603 8.44994 47.3803 6.29994 44.1003 6.29994ZM45.3903 14.7199C45.3903 16.3599 45.1003 17.3899 44.0503 17.3899C43.0203 17.3899 42.7303 16.3499 42.7303 14.7199V10.6799C42.7303 9.27994 42.9303 8.02994 44.0503 8.02994C45.2303 8.02994 45.3903 9.34994 45.3903 10.6799V14.7199Z"></path><path d="M52.2713 19.0899C53.7313 19.0899 54.6413 18.4799 55.3913 17.3799H55.5013L55.6113 18.8999H57.6012V6.53994H54.9613V16.4699C54.6812 16.9599 54.0312 17.3199 53.4212 17.3199C52.6512 17.3199 52.4113 16.7099 52.4113 15.6899V6.53994H49.7812V15.8099C49.7812 17.8199 50.3613 19.0899 52.2713 19.0899Z"></path><path d="M62.8261 18.8999V4.14994H65.8661V2.09994H57.1761V4.14994H60.2161V18.8999H62.8261Z"></path><path d="M67.8728 19.0899C69.3328 19.0899 70.2428 18.4799 70.9928 17.3799H71.1028L71.2128 18.8999H73.2028V6.53994H70.5628V16.4699C70.2828 16.9599 69.6328 17.3199 69.0228 17.3199C68.2528 17.3199 68.0128 16.7099 68.0128 15.6899V6.53994H65.3828V15.8099C65.3828 17.8199 65.9628 19.0899 67.8728 19.0899Z"></path><path d="M80.6744 6.26994C79.3944 6.26994 78.4744 6.82994 77.8644 7.73994H77.7344C77.8144 6.53994 77.8744 5.51994 77.8744 4.70994V1.43994H75.3244L75.3144 12.1799L75.3244 18.8999H77.5444L77.7344 17.6999H77.8044C78.3944 18.5099 79.3044 19.0199 80.5144 19.0199C82.5244 19.0199 83.3844 17.2899 83.3844 13.6099V11.6999C83.3844 8.25994 82.9944 6.26994 80.6744 6.26994ZM80.7644 13.6099C80.7644 15.9099 80.4244 17.2799 79.3544 17.2799C78.8544 17.2799 78.1644 17.0399 77.8544 16.5899V9.23994C78.1244 8.53994 78.7244 8.02994 79.3944 8.02994C80.4744 8.02994 80.7644 9.33994 80.7644 11.7299V13.6099Z"></path><path d="M92.6517 11.4999C92.6517 8.51994 92.3517 6.30994 88.9217 6.30994C85.6917 6.30994 84.9717 8.45994 84.9717 11.6199V13.7899C84.9717 16.8699 85.6317 19.1099 88.8417 19.1099C91.3817 19.1099 92.6917 17.8399 92.5417 15.3799L90.2917 15.2599C90.2617 16.7799 89.9117 17.3999 88.9017 17.3999C87.6317 17.3999 87.5717 16.1899 87.5717 14.3899V13.5499H92.6517V11.4999ZM88.8617 7.96994C90.0817 7.96994 90.1717 9.11994 90.1717 11.0699V12.0799H87.5717V11.0699C87.5717 9.13994 87.6517 7.96994 88.8617 7.96994Z"></path></g></svg><span class="jp-mark">JP</span></div>
   </div>
   <div class="hcenter">
     <form class="searchbox" id="searchForm">
@@ -2365,6 +2452,139 @@ function nkMountExtras(box, ui, vp, opt) {
     document.addEventListener("keydown", onKey);
 }
 nkInitMoreMenu();
+
+/* ===== v4: 視聴ページ統計 / ミニプレイヤー / ライブ用UI ===== */
+function nkEnhanceWatch(v) {
+    var desc = document.getElementById("desc");
+    if (!desc || !v) return;
+    var bits = [];
+    if (v.viewCount) bits.push(fmtNum(v.viewCount) + "回視聴");
+    var pub = v.publishedText || ago(v.published);
+    if (pub) bits.push(String(pub));
+    var stats = desc.querySelector(".nk-desc-stats");
+    if (!stats) {
+        stats = document.createElement("div");
+        stats.className = "nk-desc-stats";
+        desc.insertBefore(stats, desc.firstChild);
+    }
+    var html = "<b>" + esc(bits.join(" ")) + "</b>";
+    if (v.likeCount) html += ' <span class="nk-hp">' + esc(fmtNum(v.likeCount)) + " ハイポイント</span>";
+    stats.innerHTML = html;
+}
+
+var NK_MINI_ICON = {
+    back: "M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z",
+    close: "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+};
+function nkMiniSvg(d) { return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + d + '"/></svg>'; }
+
+function nkMiniEnsureBar(w) {
+    var bar = w.querySelector(".nk-mini-bar");
+    if (bar) return bar;
+    bar = document.createElement("div");
+    bar.className = "nk-mini-bar";
+    bar.innerHTML = '<span class="nk-mini-title"></span>' +
+        '<button type="button" class="nk-mini-btn nk-mini-back" aria-label="元のサイズに戻す" title="元に戻す">' + nkMiniSvg(NK_MINI_ICON.back) + "</button>" +
+        '<button type="button" class="nk-mini-btn nk-mini-close" aria-label="閉じる" title="閉じる">' + nkMiniSvg(NK_MINI_ICON.close) + "</button>";
+    w.appendChild(bar);
+    bar.querySelector(".nk-mini-back").onclick = function (e) { e.stopPropagation(); nkMiniSet(false); };
+    bar.querySelector(".nk-mini-close").onclick = function (e) {
+        e.stopPropagation();
+        var vp = w.querySelector("video");
+        if (vp) vp.pause();
+        nkMiniSet(false);
+    };
+    /* ミニプレイヤーはバーをつかんでどこへでも移動できる */
+    bar.onpointerdown = function (e) {
+        if (e.target.closest && e.target.closest("button")) return;
+        var r = w.getBoundingClientRect();
+        var ox = e.clientX - r.left, oy = e.clientY - r.top;
+        var move = function (ev) {
+            var x = Math.max(0, Math.min(window.innerWidth - w.offsetWidth, ev.clientX - ox));
+            var y = Math.max(0, Math.min(window.innerHeight - w.offsetHeight, ev.clientY - oy));
+            w.style.left = x + "px"; w.style.top = y + "px";
+            w.style.right = "auto"; w.style.bottom = "auto";
+        };
+        var up = function () {
+            document.removeEventListener("pointermove", move);
+            document.removeEventListener("pointerup", up);
+        };
+        document.addEventListener("pointermove", move);
+        document.addEventListener("pointerup", up);
+    };
+    return bar;
+}
+
+function nkMiniSet(on) {
+    var w = document.getElementById("playerWrap");
+    if (!w) return false;
+    var bar = nkMiniEnsureBar(w);
+    var t = document.getElementById("vtitle");
+    bar.querySelector(".nk-mini-title").textContent = t ? t.textContent : "";
+    var stage = w.parentNode;
+    if (on) { w.classList.add("nk-mini"); if (stage && stage.classList) stage.classList.add("nk-mini-hold"); }
+    else {
+        w.classList.remove("nk-mini");
+        if (stage && stage.classList) stage.classList.remove("nk-mini-hold");
+        w.style.left = ""; w.style.top = ""; w.style.right = ""; w.style.bottom = "";
+    }
+    return true;
+}
+window.__nkMiniToggle = function () {
+    var w = document.getElementById("playerWrap");
+    if (!w) return false;
+    nkMiniSet(!w.classList.contains("nk-mini"));
+    return true;
+};
+
+/* ライブ判定: 無限長の duration（MSE/HLS の生放送）または HLS の live フラグ */
+function nkIsLiveNow(vp) {
+    if (!vp) return false;
+    if (vp.duration === Infinity) return true;
+    try {
+        var hl = window.hls;
+        if (hl && hl.levels && hl.levels[0] && hl.levels[0].details && hl.levels[0].details.live) return true;
+    } catch (e) {}
+    return false;
+}
+/* 生放送で再生できる範囲（DVR の巻き戻し可能な区間） */
+function nkLiveRange(vp) {
+    try {
+        var sk = vp.seekable;
+        if (!sk || !sk.length) return null;
+        var s = sk.start(0), e = sk.end(sk.length - 1);
+        if (!(e > s)) return null;
+        return { s: s, e: e };
+    } catch (err) { return null; }
+}
+/* ライブ時の表示（経過時間の代わりに「ライブ」「-0:42」、バーは配信範囲に対する位置） */
+function nkLiveUpdate(box, ui, vp) {
+    var q = function (s) { return ui.querySelector(s); };
+    var live = nkIsLiveNow(vp);
+    box.classList.toggle("nk-live", live);
+    var btn = q(".yt-golive"), timeEl = q(".yt-time"), played = q(".yt-played"), knob = q(".yt-knob"), buf = q(".yt-buf");
+    if (!live) { if (btn) btn.hidden = true; return; }
+    var lr = nkLiveRange(vp);
+    if (btn) btn.hidden = false;
+    if (!lr) return;
+    var cur = Math.min(lr.e, Math.max(lr.s, vp.currentTime || 0));
+    var behind = lr.e - cur;
+    var atEdge = behind < 4;
+    var pct = ((cur - lr.s) / (lr.e - lr.s)) * 100;
+    if (played) played.style.width = pct + "%";
+    if (knob) knob.style.left = pct + "%";
+    if (buf) buf.style.width = "100%";
+    if (timeEl) {
+        timeEl.classList.toggle("lv-now", atEdge);
+        timeEl.textContent = atEdge ? "ライブ" : "-" + nkFmtTime(behind);
+    }
+    if (btn) {
+        btn.hidden = atEdge;
+        btn.classList.toggle("on", atEdge);
+        btn.setAttribute("aria-label", atEdge ? "ライブ配信中" : "ライブに戻る");
+    }
+}
+
 function nkYtControls(box, vp, opt) {
     var ui = el("div", "yt-ctrl");
     ui.innerHTML =
@@ -2447,8 +2667,8 @@ function nkYtControls(box, vp, opt) {
     var seekFrom = function (e) {
         var r = prog.getBoundingClientRect();
         var x = Math.min(1, Math.max(0, (e.clientX - r.left) / (r.width || 1)));
-        if (vp.duration)
-            vp.currentTime = x * vp.duration;
+        if (nkIsLiveNow(vp)) { var lr = nkLiveRange(vp); if (lr) vp.currentTime = lr.s + x * (lr.e - lr.s); }
+        else if (vp.duration && isFinite(vp.duration)) vp.currentTime = x * vp.duration;
         paint();
     };
     prog.addEventListener("pointerdown", function (e) { dragging = true; try {
@@ -2624,6 +2844,30 @@ function nkYtControls(box, vp, opt) {
     ["timeupdate", "loadedmetadata", "durationchange", "progress", "play", "pause", "volumechange", "ended"]
         .forEach(function (ev) { return vp.addEventListener(ev, paint); });
     nkMountExtras(box, ui, vp, opt || {});
+
+    /* ライブ: 「ライブ」ボタンで配信の最新地点へ、表示も配信範囲に合わせる */
+    (function () {
+        var tEl = ui.querySelector(".yt-time");
+        var gl = document.createElement("button");
+        gl.type = "button";
+        gl.className = "yt-golive";
+        gl.hidden = true;
+        gl.innerHTML = "<i></i>ライブ";
+        if (tEl && tEl.parentNode) tEl.parentNode.insertBefore(gl, tEl.nextSibling);
+        gl.onclick = function (e) {
+            e.stopPropagation();
+            var lr = nkLiveRange(vp);
+            if (lr) { try { vp.currentTime = Math.max(lr.s, lr.e - 0.5); } catch (err) {} }
+        };
+        var upd = function () {
+            if (!ui.isConnected) return;
+            nkLiveUpdate(box, ui, vp);
+        };
+        ["timeupdate", "progress", "durationchange", "loadedmetadata", "play", "pause", "seeked"].forEach(function (ev) {
+            vp.addEventListener(ev, upd);
+        });
+        upd();
+    })();
     paint();
     return ui;
 }
@@ -5057,7 +5301,7 @@ function videoCard(v, mode, idx) {
             '<div class="meta">' + (mode === "list" ? "" : av) + "<div style=\"min-width:0;flex:1\">" +
             '<div class="mtitle">' + esc(v.title) + "</div>" +
             channel +
-            '<div class="msub">' + (v.viewCount ? fmtNum(v.viewCount) + "回視聴・" : "") + (v.streamed && !live ? "配信済み・" : "") + esc(String(v.publishedText || ago(v.published) || "").replace(/^配信済み[・ ]?/, "")) + "</div>" +
+            '<div class="msub">' + (v.viewCount ? fmtNum(v.viewCount) + (mode === "rel" ? " " : "回視聴・") : "") + (v.streamed && !live ? "配信済み・" : "") + esc(String(v.publishedText || ago(v.published) || "").replace(/^配信済み[・ ]?/, "")) + "</div>" +
             desc +
             "</div>" +
             '<button class="card-more" type="button" aria-label="その他" title="その他"><svg viewBox="0 0 24 24"><path d="M12 8a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z"/></svg></button></div>';
@@ -6131,6 +6375,7 @@ function pageWatch(id, startAt) {
                         e.currentTarget.textContent = opened ? "表示を減らす" : "もっと見る";
                         e.currentTarget.setAttribute("aria-expanded", String(opened));
                     };
+                    nkEnhanceWatch(v);
                     $("#goCh").onclick = function () { return v.authorId && go("/channel?c=" + v.authorId); };
                     $("#btnSub").onclick = function () {
                         var i = S.subs.findIndex(function (s) { return s.id === v.authorId; });
@@ -6192,6 +6437,7 @@ function pageWatch(id, startAt) {
                         toast(on ? "シアターモード" : "通常表示");
                     };
                     openPip = function () {
+                        if (window.__nkMiniToggle && window.__nkMiniToggle()) return;
                         var vp = $("#vp");
                         if (vp && vp.requestPictureInPicture) {
                             vp.requestPictureInPicture().catch(function () { });
