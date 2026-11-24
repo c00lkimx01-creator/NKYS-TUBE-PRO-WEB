@@ -255,6 +255,7 @@ dialog h3{margin:0 0 12px}
 .th-act:hover .th-tip{opacity:1}
 @media(hover:none){.th-acts{display:none}}
 .dur{font-variant-numeric:tabular-nums}
+.author-av,.channel-icon,.meta img.author-av{border-radius:50%!important;object-fit:cover;aspect-ratio:1/1}
 </style>
 
 <style>
@@ -4168,6 +4169,11 @@ function fetchChannelAvatar(cid) {
                     url = "";
                     return [3 /*break*/, 4];
                 case 4:
+                    if (!url)
+                        return [2 /*return*/, nkAvatarFallback(cid).then(function (u) {
+                            if (u) { AVATARS.set(cid, u); saveAvatars(); }
+                            AVATAR_JOBS.delete(cid); return u;
+                        })];
                     if (url) {
                         AVATARS.set(cid, url);
                         saveAvatars();
@@ -4180,6 +4186,19 @@ function fetchChannelAvatar(cid) {
     AVATAR_JOBS.set(cid, job);
     return job;
 }
+var NK_AV_BLANK = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="#3a3a3a"/><circle cx="20" cy="16" r="7" fill="#777"/><path d="M6 36c2-8 8-11 14-11s12 3 14 11z" fill="#777"/></svg>');
+/* Worker で取れないときは Invidious → チャンネル RSS 不要の動画情報から取得 */
+function nkAvatarFallback(cid) {
+    var tryNiv = (typeof nivGet === "function") ? nivGet("/api/v1/channels/" + encodeURIComponent(cid) + "?fields=authorThumbnails", null, 8000)
+        .then(function (d) { return pickAvatar(d && d.authorThumbnails); }).catch(function () { return ""; }) : Promise.resolve("");
+    return tryNiv.then(function (u) {
+        if (u) return u;
+        var vid = "";
+        previewVideos.forEach(function (v) { if (!vid && (v.authorId === cid || v.channelId === cid)) vid = v.videoId || v.id; });
+        if (!vid) return "";
+        return getVideo(vid).then(function (d) { return authorImg(d || {}); }).catch(function () { return ""; });
+    });
+}
 /* <img> に正しいチャンネルアイコンを流し込む（未取得なら Worker から遅延取得） */
 function applyAuthorIcon(img, v) {
     if (!img || !v)
@@ -4190,9 +4209,22 @@ function applyAuthorIcon(img, v) {
         if (u && img.isConnected !== false)
             img.src = u;
     }); };
+    if (!isChannelId(cid)) {
+        var vid0 = v.videoId || v.id;
+        loadResolved = function () {
+            if (!vid0) return Promise.resolve();
+            return getVideo(vid0).then(function (d) {
+                if (!d) return;
+                var u = authorImg(d) || AVATARS.get(d.authorId || "");
+                if (u) { img.src = u; return; }
+                if (isChannelId(d.authorId)) return fetchChannelAvatar(d.authorId).then(function (x) { if (x) img.src = x; });
+            }).catch(function () { });
+        };
+    }
     img.onerror = function () {
         img.onerror = null;
-        img.removeAttribute("src");
+        img.src = NK_AV_BLANK;
+        if (cid) AVATARS.delete(cid);
         loadResolved();
     };
     if (direct) {
@@ -5411,7 +5443,7 @@ function videoCard(v, mode, idx) {
     /* 先頭から8件はファーストビューに入るため eager + fetchpriority=high で即表示 */
     var eager = idx != null && idx < 8;
     var ld = eager ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"';
-    var avSrc = authorImg(v) || AVATARS.get(v.authorId || "") || "https://i.ytimg.com/vi/" + id + "/default.jpg";
+    var avSrc = authorImg(v) || AVATARS.get(v.authorId || v.channelId || "") || NK_AV_BLANK;
     var av = mode === "list" ? '<img class="channel-icon author-av" referrerpolicy="no-referrer" ' + ld + ' decoding="async" width="28" height="28" src="' + esc(avSrc) + '" alt="">'
         : mode ? "" : '<img class="author-av" referrerpolicy="no-referrer" ' + ld + ' decoding="async" width="36" height="36" src="' + esc(avSrc) + '" alt="">';
     var channelName = v.author || v.channelName || (v.channel && (v.channel.name || v.channel.title)) || "";
@@ -6404,7 +6436,7 @@ function pageWatch(id, startAt) {
                     else
                         $("#side").appendChild(ghostRelated(12));
                     if (known && known.author) {
-                        $(".owner").innerHTML = '<img class="author-av" referrerpolicy="no-referrer" src="' + esc(authorImg(known) || NK_AVATAR) + '" alt=""><div><div class="oname">' + esc(known.author) + '</div></div>';
+                        $(".owner").innerHTML = '<img class="author-av" referrerpolicy="no-referrer" src="' + esc(authorImg(known) || NK_AVATAR) + '" alt=""><div><div class="oname">' + esc(known.author) + '</div></div>'; applyAuthorIcon($(".owner img.author-av"), known);
                     }
                     if (known && known.description) {
                         $("#desc .desc-body").innerHTML = descriptionHtml(known.description);
@@ -6419,7 +6451,7 @@ function pageWatch(id, startAt) {
                             $("#vtitle").textContent = meta.title;
                         }
                         if (meta.author)
-                            $(".owner").innerHTML = '<img class="author-av" referrerpolicy="no-referrer" src="' + esc(authorImg(meta) || NK_AVATAR) + '" alt=""><div><div class="oname">' + esc(meta.author) + '</div></div>';
+                            $(".owner").innerHTML = '<img class="author-av" referrerpolicy="no-referrer" src="' + esc(authorImg(meta) || NK_AVATAR) + '" alt=""><div><div class="oname">' + esc(meta.author) + '</div></div>'; if (meta.author) applyAuthorIcon($(".owner img.author-av"), meta);
                         if (meta.description) {
                             var body = $("#desc .desc-body");
                             if (body)
@@ -9113,7 +9145,7 @@ function shortItem(v) {
             "</div>" +
             '<div class="sh-overlay">' +
             '<div class="sh-owner">' +
-            '<img src="' + esc(authorImg(v) || "https://i.ytimg.com/vi/" + id + "/default.jpg") + '" alt="">' +
+            '<img class="author-av" referrerpolicy="no-referrer" src="' + esc(authorImg(v) || AVATARS.get(v.authorId || "") || NK_AV_BLANK) + '" alt="">' +
             '<span class="sh-name">@' + esc(v.author || "") + "</span>" + collabPlusHtml(v.authorId) +
             '<button class="sh-sub">' + (subbed ? "登録済み" : "登録") + "</button>" +
             "</div>" +
@@ -9501,8 +9533,8 @@ function shortItem(v) {
                         q(".sh-views").textContent =
                             (v.viewCount ? fmtNum(v.viewCount) + "回視聴" : (v.publishedText || ago(d.published) || ""));
                     av = authorImg(v);
-                    if (av && q(".sh-owner img"))
-                        q(".sh-owner img").src = av;
+                    if (q(".sh-owner img"))
+                        applyAuthorIcon(q(".sh-owner img"), v);
                     likeCnt = q(".sh-like") && q(".sh-like").parentElement.querySelector(".sh-cnt");
                     if (likeCnt)
                         likeCnt.textContent = fmtNum(v.likeCount || 0);
@@ -10410,7 +10442,7 @@ function renderSubs() {
     box.innerHTML = "";
     S.subs.forEach(function (s) {
         var r = el("div", "subrow");
-        r.innerHTML = '<img src="' + esc(s.img || "") + '" alt=""><span class="subrow-name">' + esc(s.name) + "</span>";
+        r.innerHTML = '<img src="' + esc(s.img || "") + '" alt=""><span class="subrow-name">' + esc(s.name) + "</span>"; applyAuthorIcon(r.querySelector("img"), { authorId: s.id, authorThumbnails: s.img ? [{ url: s.img }] : [] });
         r.onclick = function () { return go("/channel?c=" + s.id); };
         box.appendChild(r);
     });
