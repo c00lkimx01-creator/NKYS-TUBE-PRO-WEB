@@ -246,6 +246,15 @@ dialog h3{margin:0 0 12px}
 }
 .logo .ytlogo{width:93px;height:20px;display:block;color:var(--fg,currentColor)}
 .home-empty{display:flex;justify-content:center;padding:24px 16px}.he-card{max-width:640px;width:100%;text-align:center;padding:24px 28px;border-radius:12px;background:var(--bg-2,rgba(127,127,127,.12))}.he-card h2{font-size:20px;margin:0 0 8px}.he-card p{margin:0;color:var(--fg-dim);font-size:14px}
+.th-acts{position:absolute;top:6px;right:6px;display:flex;flex-direction:column;gap:6px;z-index:11;opacity:0;transition:opacity .2s}
+.card:hover .th-acts,.rel-item:hover .th-acts,.list-item:hover .th-acts,.th-acts:focus-within{opacity:1}
+.th-act{position:relative;width:32px;height:32px;border:0;border-radius:50%;background:rgba(0,0,0,.72);color:#fff;display:grid;place-items:center;cursor:pointer;padding:0}
+.th-act svg{width:20px;height:20px;fill:currentColor}
+.th-act.on{background:#fff;color:#0f0f0f}
+.th-act .th-tip{position:absolute;right:38px;top:50%;transform:translateY(-50%);white-space:nowrap;background:rgba(0,0,0,.85);color:#fff;font-size:12px;padding:4px 8px;border-radius:4px;opacity:0;pointer-events:none;transition:opacity .15s}
+.th-act:hover .th-tip{opacity:1}
+@media(hover:none){.th-acts{display:none}}
+.dur{font-variant-numeric:tabular-nums}
 </style>
 
 <style>
@@ -1999,8 +2008,9 @@ body.theater #chips{display:none !important}
 .thumb{position:relative}
 .nk-prev{position:absolute;top:0;right:0;bottom:0;left:0;width:100%;height:100%;border:0;opacity:0;transition:opacity .45s ease;pointer-events:none;background:#000;z-index:2;border-radius:inherit}
 .nk-prev.on{opacity:1}
-.thumb.nk-live img{opacity:0;transition:opacity .45s ease}
-.thumb.nk-live .dur{opacity:0;transition:opacity .3s}
+.thumb.nk-live img{opacity:1}
+.thumb.nk-playing img{opacity:0;transition:opacity .45s ease}
+.thumb.nk-playing .dur,.thumb.nk-playing .th-acts{opacity:0!important;transition:opacity .3s}
 .thumb img,.thumb .dur{transition:opacity .45s ease}
 .nk-prev-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.28);z-index:3;pointer-events:none}
 .nk-prev-bar i{display:block;height:100%;width:0;background:#f00;transition:width .5s linear}
@@ -2361,7 +2371,64 @@ function nkInitMoreMenu() {
     document.addEventListener("keydown", function (e) { if (e.key === "Escape")
         close(); });
 }
-function nkCcClean(s) { return String(s || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " "); }
+function nkCcClean(s) { return String(s || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&quot;/g, '"'); }
+/* WebVTT / SRT を自前で解析（<track> の CORS 制限を回避） */
+function nkParseVtt(txt) {
+    var ts = function (x) { var p = x.trim().replace(",", ".").split(":"); var v = 0; p.forEach(function (n) { v = v * 60 + parseFloat(n); }); return v; };
+    var out = [], blocks = String(txt || "").replace(/\r/g, "").split(/\n\n+/);
+    blocks.forEach(function (b) {
+        var lines = b.split("\n"), k = lines.findIndex(function (l) { return l.indexOf("-->") >= 0; });
+        if (k < 0) return;
+        var m = lines[k].split("-->");
+        var t = nkCcClean(lines.slice(k + 1).join("\n")).trim();
+        if (!t) return;
+        var s0 = ts(m[0]), e0 = ts(m[1].trim().split(/\s+/)[0]);
+        if (isFinite(s0) && isFinite(e0)) out.push({ s: s0, e: e0, t: t });
+    });
+    /* 自動生成字幕の重複行を整理 */
+    for (var i = 1; i < out.length; i++) if (out[i].t === out[i - 1].t && out[i].s <= out[i - 1].e + .05) { out[i - 1].e = out[i].e; out.splice(i--, 1); }
+    return out;
+}
+function nkFetchText(u) {
+    return fetch(u).then(function (r) { if (!r.ok) throw new Error("cc"); return r.text(); });
+}
+/* 字幕テキストを Google 翻訳（gtx）で一括翻訳 */
+function nkTranslateCues(list, tl) {
+    var chunks = [], cur = [], len = 0;
+    list.forEach(function (c, i) { var t = c.t.replace(/\n/g, " "); if (len + t.length > 1800 && cur.length) { chunks.push(cur); cur = []; len = 0; } cur.push(i); len += t.length + 1; });
+    if (cur.length) chunks.push(cur);
+    return Promise.all(chunks.map(function (idxs) {
+        var q = idxs.map(function (i) { return list[i].t.replace(/\n/g, " "); }).join("\n");
+        return fetch("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=" + encodeURIComponent(tl) + "&dt=t&q=" + encodeURIComponent(q))
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                var joined = (d && d[0] || []).map(function (x) { return x && x[0] || ""; }).join("");
+                var parts = joined.split("\n");
+                if (parts.length === idxs.length) idxs.forEach(function (i, k) { list[i] = { s: list[i].s, e: list[i].e, t: parts[k].trim() }; });
+            }).catch(function () { });
+    })).then(function () { return list; });
+}
+var nkCcCache = new Map();
+function nkCcLoad(t, tl) {
+    var key = t.raw + "|" + (tl || "");
+    if (nkCcCache.has(key)) return nkCcCache.get(key);
+    var base = function () {
+        return nkFetchText(t.raw).catch(function () { return nkFetchText("/api/public/px?u=" + encodeURIComponent(t.raw)); })
+            .then(nkParseVtt).catch(function () { return []; });
+    };
+    var p;
+    if (!tl || (t.lang && t.lang.split("-")[0] === tl)) p = base();
+    else {
+        /* まずサーバー側翻訳（tlang）を試し、だめなら取得後に翻訳 */
+        var u = t.raw + (t.raw.indexOf("?") >= 0 ? "&" : "?") + "tlang=" + encodeURIComponent(tl);
+        p = nkFetchText(u).then(nkParseVtt).catch(function () { return []; }).then(function (l) {
+            return l.length ? l : base().then(function (b) { return b.length ? nkTranslateCues(b.slice(), tl) : b; });
+        });
+    }
+    p.then(function (l) { if (!l.length) nkCcCache.delete(key); });
+    nkCcCache.set(key, p);
+    return p;
+}
 function nkMountExtras(box, ui, vp, opt) {
     var q = function (s) { return ui.querySelector(s); };
     var autoBtn = q(".yt-auto"), ccBtn = q(".yt-cc"), ccWrap = q(".yt-ccwrap"), ccPop = q(".yt-cpop");
@@ -2394,7 +2461,8 @@ function nkMountExtras(box, ui, vp, opt) {
         }
         var items = [{ label: "字幕なし", idx: -1 }];
         tracks.forEach(function (t, i) { return items.push({ label: t.label, idx: i }); });
-        ccPop.innerHTML = '<div class="yt-pop-h">字幕</div>' + items.map(function (it) {
+        var tlv = (S.settings && S.settings.ccTranslate) || "";
+        ccPop.innerHTML = '<div class="yt-pop-h">字幕' + (tlv ? '（自動翻訳: ' + esc(NK_CC_LANGS[tlv] || tlv) + '）' : '') + '</div>' + items.map(function (it) {
             return '<button type="button" class="yt-pop-i' + (it.idx === curIdx ? " on" : "") + '" data-ci="' + it.idx + '">' +
                 '<span class="yt-chk">' + (it.idx === curIdx ? "✓" : "") + "</span>" + esc(it.label) + "</button>";
         }).join("");
@@ -2408,41 +2476,33 @@ function nkMountExtras(box, ui, vp, opt) {
             .then(function (txt) { t.src = URL.createObjectURL(new Blob([txt], { type: "text/vtt" })); return t.src; })
             .catch(function () { t.src = t.raw; return t.raw; });
     };
+    var cues = [], cueTimer = 0;
+    var paintCue = function () {
+        if (curIdx < 0 || !cues.length) { overlay.textContent = ""; return; }
+        var t = vp.currentTime, out = [];
+        for (var i = 0; i < cues.length; i++) { var c = cues[i]; if (c.s <= t && t < c.e) out.push(c.t); }
+        var txt = out.join("\n");
+        if (overlay.textContent !== txt) overlay.textContent = txt;
+    };
+    if (isVideo) { vp.addEventListener("timeupdate", paintCue); vp.addEventListener("seeked", paintCue); }
     var select = function (idx) {
         var my = ++tok;
         curIdx = idx;
         if (idx >= 0)
             lastIdx = idx;
         overlay.textContent = "";
-        if (trackEl) {
-            trackEl.remove();
-            trackEl = null;
-        }
+        cues = [];
         ccBtn.classList.toggle("on", idx >= 0);
         ccBtn.setAttribute("aria-pressed", idx >= 0 ? "true" : "false");
         renderPop();
         if (idx < 0 || !tracks[idx])
             return;
-        loadSrc(tracks[idx]).then(function (src) {
-            if (my !== tok)
-                return;
-            var t = tracks[idx];
-            var tr = document.createElement("track");
-            tr.kind = "subtitles";
-            tr.label = t.label;
-            tr.srclang = t.lang || "und";
-            tr.src = src;
-            vp.appendChild(tr);
-            trackEl = tr;
-            var tt = tr.track;
-            tt.mode = "hidden";
-            tt.addEventListener("cuechange", function () {
-                var cues = tt.activeCues || [];
-                var lines = [];
-                for (var i = 0; i < cues.length; i++)
-                    lines.push(nkCcClean(cues[i].text));
-                overlay.textContent = lines.join("\n");
-            });
+        var tl = (S.settings && S.settings.ccTranslate) || "";
+        nkCcLoad(tracks[idx], tl).then(function (list) {
+            if (my !== tok) return;
+            cues = list;
+            if (!list.length) toast("字幕を読み込めませんでした");
+            paintCue();
         });
     };
     ccWrap.hidden = !isVideo;
@@ -3000,37 +3060,19 @@ function nkPreviewStart(card) {
     thumb.classList.add("nk-live");
     var token = ++nkPvToken;
     nkPvCard = card;
-    getVideo(id).then(function (v) {
-        if (token !== nkPvToken || !thumb.contains(bar))
-            return;
-        var list = ((v && v.formatStreams) || []).filter(function (x) { return x && x.url; });
-        if (!list.length)
-            return;
-        /* 360p 付近を選ぶ（起動が速く通信量も少ない） */
-        var pick = list[0], best = Infinity;
-        list.forEach(function (x) {
-            var hgt = Number(x.height) || parseInt(x.qualityLabel, 10) || 0;
-            var d = Math.abs(hgt - 360);
-            if (d < best) { best = d; pick = x; }
-        });
-        var vid = document.createElement("video");
-        vid.className = "nk-prev";
-        vid.muted = true;
-        vid.defaultMuted = true;
-        vid.setAttribute("muted", "");
-        vid.setAttribute("playsinline", "");
-        vid.preload = "auto";
-        vid.addEventListener("playing", function () { vid.classList.add("on"); });
-        vid.addEventListener("timeupdate", function () {
-            if (vid.duration && isFinite(vid.duration))
-                bar.firstChild.style.width = Math.min(100, (vid.currentTime / vid.duration) * 100) + "%";
-        });
-        vid.addEventListener("error", function () { if (token === nkPvToken) nkPreviewStop(card); });
-        thumb.insertBefore(vid, bar);
-        vid.src = USE_PROXY ? px(pick.url) : pick.url;
-        var p = vid.play();
-        if (p && p.catch) p.catch(function () { });
-    }).catch(function () { });
+    var fr = document.createElement("iframe");
+    fr.className = "nk-prev";
+    fr.allow = "autoplay; encrypted-media";
+    fr.setAttribute("tabindex", "-1");
+    fr.src = NK_PV_ORIGIN + "/embed/" + encodeURIComponent(id) + "?autoplay=1&mute=1&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&enablejsapi=1&origin=" + encodeURIComponent(location.origin);
+    fr.__bar = bar.firstChild;
+    nkPvFrame = fr;
+    fr.addEventListener("load", function () {
+        try { fr.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), NK_PV_ORIGIN); } catch (_) { }
+        /* 埋め込みの読み込み後に少し待ってからサムネと入れ替え（グレー表示を防ぐ） */
+        setTimeout(function () { if (token === nkPvToken) { fr.classList.add("on"); thumb.classList.add("nk-playing"); } }, 700);
+    });
+    thumb.insertBefore(fr, bar);
 }
 function nkPreviewStop(card) {
     if (!card)
@@ -3038,14 +3080,15 @@ function nkPreviewStop(card) {
     nkPvToken++;
     var thumb = card.querySelector(".thumb");
     if (thumb) {
-        Array.prototype.forEach.call(thumb.querySelectorAll("video.nk-prev, .nk-prev-bar"), function (n) {
+        Array.prototype.forEach.call(thumb.querySelectorAll(".nk-prev, .nk-prev-bar"), function (n) {
             if (n.tagName === "VIDEO") {
                 try { n.pause(); n.removeAttribute("src"); n.load(); } catch (err) { }
             }
             n.parentNode && n.parentNode.removeChild(n);
         });
-        thumb.classList.remove("nk-live");
+        thumb.classList.remove("nk-live", "nk-playing");
     }
+    if (nkPvFrame && !document.contains(nkPvFrame)) nkPvFrame = null;
     if (nkPvCard === card)
         nkPvCard = null;
 }
@@ -5382,7 +5425,7 @@ function videoCard(v, mode, idx) {
     var desc = (mode === "list" && description) ? '<div class="mdesc">' + esc(description) + "</div>" : "";
     card.innerHTML =
         '<div class="thumb"><img ' + ld + ' decoding="async" width="480" height="270" src="' +
-            esc(thumbUrl(v, mode ? "m" : "h")) + '" alt="">' + dur + "</div>" +
+            esc(thumbUrl(v, mode ? "m" : "h")) + '" alt="">' + dur + nkThumbActs() + "</div>" +
             '<div class="meta">' + (mode === "list" ? "" : av) + "<div style=\"min-width:0;flex:1\">" +
             '<div class="mtitle">' + esc(v.title) + "</div>" +
             channel +
@@ -5399,10 +5442,71 @@ function videoCard(v, mode, idx) {
         relatedChannel.onclick = function (e) { e.stopPropagation(); go("/channel?c=" + encodeURIComponent(channelId)); };
     card.onclick = function () { return go("/watch?v=" + id); };
     card.dataset.vid = id;
+    nkWireThumbActs(card, v);
+    if (!dur && !live) nkDurObserve(card, id);
     card.addEventListener("pointerenter", function () { return prefetchVideo(id); }, { once: true });
     card.addEventListener("touchstart", function () { return prefetchVideo(id); }, { once: true, passive: true });
     return card;
 }
+/* サムネ右上: 後で見る / キューに追加 */
+function nkThumbActs() {
+    return '<div class="th-acts">' +
+        '<button type="button" class="th-act" data-ta="later" aria-label="後で見る"><span class="th-tip">後で見る</span><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 110 20 10 10 0 010-20zm0 2a8 8 0 100 16 8 8 0 000-16zm1 3v5.4l3.6 2.1-1 1.7L11 13.5V7h2z"/></svg></button>' +
+        '<button type="button" class="th-act" data-ta="queue" aria-label="キューに追加"><span class="th-tip">キューに追加</span><svg viewBox="0 0 24 24"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-3v-3h2v3h3v2h-3v3h-2v-3h-3v-2z"/></svg></button></div>';
+}
+function nkWireThumbActs(card, v) {
+    var id = v.videoId || v.id;
+    var paint = function () {
+        var l = card.querySelector('[data-ta="later"]'), q = card.querySelector('[data-ta="queue"]');
+        var inL = (S.later || []).some(function (x) { return x.videoId === id; });
+        var inQ = nkQueue().some(function (x) { return x.videoId === id; });
+        if (l) { l.classList.toggle("on", inL); l.querySelector(".th-tip").textContent = inL ? "追加済み" : "後で見る"; }
+        if (q) { q.classList.toggle("on", inQ); q.querySelector(".th-tip").textContent = inQ ? "キューに追加済み" : "キューに追加"; }
+    };
+    Array.prototype.forEach.call(card.querySelectorAll(".th-act"), function (b) {
+        b.addEventListener("click", function (e) {
+            e.stopPropagation(); e.preventDefault();
+            if (b.dataset.ta === "later") {
+                toggleList("later", v);
+                toast((S.later || []).some(function (x) { return x.videoId === id; }) ? "後で見るに保存しました" : "後で見るから削除しました");
+            } else {
+                var q = nkQueue(), i = q.findIndex(function (x) { return x.videoId === id; });
+                if (i >= 0) q.splice(i, 1); else q.push(slim(v));
+                nkQueueSave(q);
+                toast(i >= 0 ? "キューから削除しました" : "キューに追加しました（" + q.length + " 本）");
+            }
+            paint();
+        });
+    });
+    paint();
+}
+function nkQueue() { try { return JSON.parse(sessionStorage.getItem("nkys_queue") || "[]"); } catch (_) { return []; } }
+function nkQueueSave(q) { try { sessionStorage.setItem("nkys_queue", JSON.stringify(q)); } catch (_) { } }
+/* 動画の再生が終わったらキューの次の動画へ */
+document.addEventListener("ended", function (e) {
+    var t = e.target;
+    if (!t || t.tagName !== "VIDEO" || (t.classList && t.classList.contains("nk-prev"))) return;
+    var q = nkQueue();
+    if (!q.length) return;
+    var n = q.shift(); nkQueueSave(q);
+    toast("キューの次の動画を再生します");
+    go("/watch?v=" + n.videoId);
+}, true);
+/* 再生時間が無いカードは画面に入ったら取得して右下に表示 */
+var nkDurIO = ("IntersectionObserver" in window) ? new IntersectionObserver(function (ents) {
+    ents.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        nkDurIO.unobserve(en.target);
+        var card = en.target, id = card.dataset.vid;
+        getVideo(id).then(function (d) {
+            var th = card.querySelector(".thumb");
+            if (!d || !th || th.querySelector(".dur")) return;
+            var html = isLive(d) ? '<span class="dur live">ライブ</span>' : (d.lengthSeconds ? '<span class="dur">' + fmtDur(d.lengthSeconds) + "</span>" : "");
+            if (html) th.insertAdjacentHTML("beforeend", html);
+        }).catch(function () { });
+    });
+}, { rootMargin: "200px" }) : null;
+function nkDurObserve(card, id) { if (nkDurIO && id) setTimeout(function () { nkDurIO.observe(card); }, 0); }
 /* カード右上の ⋯ メニュー: 後で見る / 再生リストに保存 / 共有 */
 var cardMenuEl = null;
 function closeCardMenu() { if (cardMenuEl) {
@@ -9868,6 +9972,7 @@ function pageShorts(startId) {
     });
 }
 /* ---- library pages ---- */
+var NK_CC_LANGS = { "": "オフ", ja: "日本語", en: "英語", ko: "韓国語", "zh-CN": "中国語（簡体）", "zh-TW": "中国語（繁体）", es: "スペイン語", fr: "フランス語", de: "ドイツ語" };
 function pageSettings() {
     setChips(null);
     var st = S.settings;
@@ -9894,6 +9999,9 @@ function pageSettings() {
             }).join("") + "</select>") +
             row("高画質モード", "映像と音声を別トラックで合成して高画質にします", sw("stAdaptive", !!st.adaptive)) +
             row("再生ページを既定で Nocookie（独自UI）にする", "オフのときはストリーム再生になります", sw("stNocookie", st.playerMode === "nocookie")) +
+            row("字幕の自動翻訳", "字幕をオンにしたとき、選んだ言語に自動で翻訳して表示します", '<select id="stCcTranslate">' + Object.keys(NK_CC_LANGS).map(function (v) {
+                return '<option value="' + v + '"' + ((st.ccTranslate || "") === v ? " selected" : "") + ">" + NK_CC_LANGS[v] + "</option>";
+            }).join("") + "</select>") +
             row("ショートの再生方法", "YouTube 埋め込みか直接ストリームを選べます", '<select id="stShorts"><option value="nocookie"' + (S.shortsPlayer === "nocookie" ? " selected" : "") +
                 '>YouTube</option><option value="stream"' + (S.shortsPlayer === "stream" ? " selected" : "") + ">ストリーム</option></select>") +
             "</div>" +
@@ -9937,6 +10045,7 @@ function pageSettings() {
         S.shortsPlayer = e.target.value;
         LS.set("shortsPlayer", e.target.value);
     } });
+    on("stCcTranslate", function (e) { st.ccTranslate = e.target.value; saveSettings(); nkCcCache.clear(); toast(e.target.value ? "字幕の自動翻訳: " + NK_CC_LANGS[e.target.value] : "字幕の自動翻訳: オフ"); });
     on("stProxy", function (e) { st.proxy = USE_PROXY = e.target.checked; saveSettings(); cache.clear(); $("#setProxy").checked = e.target.checked; });
     on("stRegion", function (e) { st.region = e.target.value; saveSettings(); cache.clear(); toast("地域を変更しました"); });
     on("stSaveSearches", function (e) { st.saveSearches = e.target.checked; saveSettings(); });
