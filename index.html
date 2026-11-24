@@ -4,6 +4,31 @@
 <meta name="referrer" content="no-referrer">
 <script>(function(){try{var p=sessionStorage.getItem("spa-redirect");if(p){sessionStorage.removeItem("spa-redirect");history.replaceState(null,"",p);}}catch(e){}})();</script>
 <meta charset="utf-8" />
+<script>
+/* 古いブラウザ(IE11 / 旧Edge / 旧Chrome)向け: 不足機能があるときだけ補助スクリプトを同期読み込み */
+(function(){
+  var need=false;
+  try{need=!window.Promise||!window.Symbol||!window.Map||!window.Set||!Array.prototype.includes||!Object.entries||!window.URL||!window.URLSearchParams||typeof Symbol.iterator==="undefined"||!(new Map()[Symbol.iterator]);}catch(e){need=true;}
+  var B="https://cdn.jsdelivr.net/npm/";
+  if(need)document.write('<script src="'+B+'core-js-bundle@3.39.0/minified.js"><\/script>');
+  if(!window.fetch)document.write('<script src="'+B+'whatwg-fetch@3.6.20/dist/fetch.umd.js"><\/script>');
+  var cssVars=false;try{cssVars=!!(window.CSS&&CSS.supports&&CSS.supports("--a","0"));}catch(e){}
+  if(!cssVars){document.write('<script src="'+B+'css-vars-ponyfill@2.4.9/dist/css-vars-ponyfill.min.js"><\/script>');
+    var run=function(){try{window.cssVars&&window.cssVars({watch:true,silent:true});}catch(e){}};
+    if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",run);else run();}
+  /* 真っ白になった場合に原因を画面に表示（スクショで原因が分かるように） */
+  window.__nkErrs=[];
+  window.onerror=function(msg,src,line,col,err){
+    try{window.__nkErrs.push(String(msg)+" ("+line+":"+col+")");
+      var show=function(){var b=document.getElementById("nk-err");if(!b){b=document.createElement("div");b.id="nk-err";b.style.cssText="position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:#300;color:#fff;font:12px/1.4 monospace;padding:8px;border-radius:6px;white-space:pre-wrap;max-height:40vh;overflow:auto";(document.body||document.documentElement).appendChild(b);}
+        b.textContent="エラー（この画面をスクショして送ってください）\n"+navigator.userAgent+"\n"+window.__nkErrs.join("\n");};
+      if(document.body)show();else document.addEventListener("DOMContentLoaded",show);
+    }catch(e){}
+    return false;
+  };
+  window.addEventListener&&window.addEventListener("unhandledrejection",function(ev){var r=ev&&ev.reason;if(r&&/is not (a function|defined|iterable)|undefined is not|Cannot read|SyntaxError|TypeError/i.test(String(r&&r.message||r)))window.onerror("Promise: "+(r&&r.message||r),"",0,0,r);});
+})();
+</script>
 <meta name="nkys-build" content="overlay-motion-v8" />
 <script>console.info("NKYS Tube Pro build: overlay-motion-v8");</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
