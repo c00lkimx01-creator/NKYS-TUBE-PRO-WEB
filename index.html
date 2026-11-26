@@ -4206,6 +4206,35 @@ function nkdlpNormalize(d, id) {
             out.hlsUrl = out.hlsUrl || pp.hlsUrl;
         }
     }
+    else if (Array.isArray(base.formats) && base.formats.some(function (f) { return f && f.url && (typeof f.hasVideo === "boolean" || typeof f.hasAudio === "boolean"); })) {
+        /* yt-dlp 風（formats[] に hasVideo / hasAudio / mime / height / bitrate / protocol）。映像+音声は formatStreams、片方だけは adaptiveFormats へ */
+        base.formats.forEach(function (f) {
+            if (!f || typeof f.url !== "string" || !f.url)
+                return;
+            var u = absNk(f.url);
+            var mime = String(f.mime || f.mimeType || "").toLowerCase();
+            var proto = String(f.protocol || "");
+            var hasV = f.hasVideo === true;
+            var hasA = f.hasAudio === true;
+            if (/m3u8/i.test(proto)) {
+                if (!out.hlsUrl && hasV)
+                    out.hlsUrl = u;
+                return;
+            }
+            var h = parseInt(f.height, 10) || 0;
+            var label = h ? h + "p" : String(f.quality || "auto");
+            var common = { url: u, itag: String(f.id || ""), bitrate: +f.bitrate || 0, contentLength: f.contentLength || null };
+            if (hasV && hasA) {
+                out.formatStreams.push(Object.assign(common, { type: mime || "video/mp4", qualityLabel: label }));
+            }
+            else if (hasV) {
+                out.adaptiveFormats.push(Object.assign(common, { type: mime || "video/mp4", qualityLabel: label }));
+            }
+            else if (hasA) {
+                out.adaptiveFormats.push(Object.assign(common, { type: mime || "audio/mp4", qualityLabel: "", audioQuality: String(f.quality || "") }));
+            }
+        });
+    }
     else {
         /* 汎用形式: 配列（streams / formats など）の各要素を種別ごとに振り分ける */
         var arr = [];
@@ -7294,13 +7323,14 @@ function mountPlayer(mode, opt) {
                 return;
             fellBack_1 = true;
             opt.autoFallbackTried = true;
-            toast("ストリーム再生に失敗したため Nocookie 再生に切り替えました");
+            toast("ストリームを再生できなかったため Nocookie 再生に切り替えました（取得URLが拒否された可能性があります）");
             window.__nkysSetMode && window.__nkysSetMode("nocookie");
         };
         var attempt_1 = function () {
             if (!vp.isConnected || settled_1)
                 return;
-            if (step_1 >= order_1.length)
+            /* 同じ取得元の URL は同じ理由で拒否されやすいので、試すのは上位 4 候補まで */
+            if (step_1 >= Math.min(order_1.length, 4))
                 return fallbackEmbed_1();
             var i = order_1[step_1++];
             if (sel_1)
@@ -7561,10 +7591,12 @@ function cobaltStreams(id, streams) {
 }
 function pickStreams(v) {
     var out = [];
+    /* NKDLP の URL は取得時の IP に固定される（ip= パラメータ）。プロキシを経由しても通らないので直接読み込む */
+    var direct = v.__src === "nkdlp";
     (v.formatStreams || []).forEach(function (f) {
         if (!f.url)
             return;
-        out.push({ url: abs(f.url), label: (f.qualityLabel || f.quality || "auto") + " (音声込)", h: parseInt(f.qualityLabel) || 0, adaptive: false });
+        out.push({ url: abs(f.url), label: (f.qualityLabel || f.quality || "auto") + " (音声込)", h: parseInt(f.qualityLabel) || 0, adaptive: false, direct: direct });
     });
     /* 映像のみの mp4/webm は、音声トラック（mp4 優先・高ビットレート）と組にして同時に再生する。音声が無ければ一覧に出さない */
     var fmts = (v.adaptiveFormats || []).filter(function (f) { return f && f.url; });
@@ -7577,17 +7609,19 @@ function pickStreams(v) {
     if (audio) {
         var seen = {};
         var vids = fmts.filter(function (f) { return /^video\//.test(f.type || "") && parseInt(f.qualityLabel, 10) > 0; });
-        vids.sort(function (a, b) { return (/mp4/.test(b.type || "") ? 1 : 0) - (/mp4/.test(a.type || "") ? 1 : 0); });
+        /* 同じ高さの候補は互換性の高い順に: H.264(avc1) > VP9 > AV1 */
+        var vRank = function (f) { var t = f.type || ""; return /avc1|h264/i.test(t) ? 0 : /vp0?9/i.test(t) ? 1 : /av01/i.test(t) ? 2 : 3; };
+        vids.sort(function (a, b) { return vRank(a) - vRank(b); });
         vids.forEach(function (f) {
             var h = parseInt(f.qualityLabel, 10) || 0;
             if (seen[h])
                 return;
             seen[h] = true;
-            out.push({ url: abs(f.url), audioUrl: abs(audio.url), label: h + "p (高画質)", h: h, adaptive: true });
+            out.push({ url: abs(f.url), audioUrl: abs(audio.url), label: h + "p (高画質)", h: h, adaptive: true, direct: direct });
         });
     }
     if (v.hlsUrl)
-        out.unshift({ url: abs(v.hlsUrl), label: "LIVE (HLS)", h: 9999, adaptive: true, live: true });
+        out.unshift({ url: abs(v.hlsUrl), label: "LIVE (HLS)", h: 9999, adaptive: true, live: true, direct: direct });
     /* 同じ高さなら、高画質モードのときは映像+音声を、そうでなければ音声込みを先に */
     out.sort(function (a, b) {
         if (b.h !== a.h)
