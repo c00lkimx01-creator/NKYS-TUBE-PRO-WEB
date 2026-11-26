@@ -55,6 +55,7 @@ document.documentElement.dataset.theme=t;}catch(e){document.documentElement.data
 <link rel="preconnect" href="https://www.youtube-nocookie.com" crossorigin />
 <link rel="dns-prefetch" href="https://www.youtube-nocookie.com" />
 <link rel="preconnect" href="https://yt.omada.cafe" crossorigin />
+<link rel="preconnect" href="https://nkdlp-api.hayabo1123.workers.dev" crossorigin />
 <link rel="dns-prefetch" href="https://yt.omada.cafe" />
 <link rel="preconnect" href="https://siatube.com" crossorigin />
 <link rel="preconnect" href="https://ytapi-btpnydgm.manus.space" crossorigin />
@@ -2104,7 +2105,7 @@ header{background:var(--bg)}
 @media (prefers-reduced-motion:reduce){
   .nk-skipfx *,.nk-center-fx,.nk-buf i,.yt-b svg,.yt-txt.nk-tpop,#playerWrap .yt-ctrl{animation:none !important;transition:none !important}
 }
-.yt-qwrap{position:relative;display:flex;align-items:center}
+.yt-qwrap{position:relative;display:flex;align-items:center}.yt-spwrap{position:relative;display:flex;align-items:center}.yt-sppop{min-width:150px}#playerWrap.nk-mini .yt-spwrap{display:none}
 .yt-qbtn{width:auto;gap:6px;padding:0 10px;border-radius:18px;font-size:14px;font-weight:500}
 .yt-qbtn svg{width:22px;height:22px}
 .yt-qlabel{white-space:nowrap}
@@ -2284,7 +2285,7 @@ body.is-watch #cpFab{top:72px !important;bottom:auto !important}
   </div>
   <div class="row"><label><input type="checkbox" id="setNocookieDefault" /> 再生ページを既定で Nocookie 埋め込みにする</label></div>
   <div class="row" style="font-size:12px;color:var(--fg-dim)">
-    ストリーム: <b style="color:var(--brand)">Invidious API (yt.omada.cafe) 優先</b>（Piped / siatube に自動フォールバック）／ 失敗時は Nocookie 埋め込みに自動フォールバック。
+    ストリーム: <b style="color:var(--brand)">NKDLP API（nkdlp-api.hayabo1123.workers.dev）優先</b>（Invidious / Piped に自動フォールバック）／ 失敗時は Nocookie 埋め込みに自動フォールバック。
     メタ情報・検索・コメント・急上昇は Invidious インスタンスへ役割分担。
   </div>
   <div class="row" id="healthBox" style="font-size:12px;color:var(--fg-dim)"></div>
@@ -2849,6 +2850,31 @@ function nkLiveUpdate(box, ui, vp) {
     }
 }
 
+/* 再生速度（0.25〜2x）。画質変更などで <video> が読み直されても defaultPlaybackRate で維持する */
+var NK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+function nkSetRate(vp, r) {
+    r = Math.min(2, Math.max(0.25, +r || 1));
+    window.__nkRate = r;
+    if (!vp)
+        return;
+    if (typeof vp.defaultPlaybackRate === "number")
+        vp.defaultPlaybackRate = r;
+    vp.playbackRate = r;
+    var lab = document.querySelector("#playerWrap .yt-speed");
+    if (lab) {
+        lab.textContent = r + "x";
+        lab.classList.remove("nk-tpop");
+        void lab.offsetWidth;
+        lab.classList.add("nk-tpop");
+    }
+}
+function nkStepRate(vp, dir) {
+    var cur = window.__nkRate || 1;
+    var next = dir > 0
+        ? (NK_RATES.find(function (x) { return x > cur + 1e-6; }) || NK_RATES[NK_RATES.length - 1])
+        : (NK_RATES.slice().reverse().find(function (x) { return x < cur - 1e-6; }) || NK_RATES[0]);
+    nkSetRate(vp, next);
+}
 function nkYtControls(box, vp, opt) {
     var ui = el("div", "yt-ctrl");
     ui.innerHTML =
@@ -2862,7 +2888,7 @@ function nkYtControls(box, vp, opt) {
             '<span class="yt-sp"></span>' +
             '<button type="button" class="yt-b yt-auto" aria-pressed="false" aria-label="自動再生" title="自動再生"><span class="yt-tg"><i>' + nkSvg(NK_ICON.tri) + "</i></span></button>" +
             '<div class="yt-ccwrap" hidden><button type="button" class="yt-b yt-cc" aria-label="字幕" aria-haspopup="true" aria-expanded="false" aria-pressed="false" title="字幕 (C)">' + nkSvg(NK_ICON.cc) + '</button><div class="yt-pop yt-cpop" hidden></div></div>' +
-            '<button type="button" class="yt-b yt-txt yt-speed" aria-label="再生速度" title="再生速度">1x</button>' +
+            '<div class="yt-spwrap"><button type="button" class="yt-b yt-txt yt-speed" aria-label="再生速度" aria-haspopup="true" aria-expanded="false" title="再生速度 (&lt; &gt;)">1x</button><div class="yt-pop yt-sppop" hidden></div></div>' +
             '<div class="yt-qwrap"><button type="button" class="yt-b yt-qbtn" aria-label="画質・設定" aria-haspopup="true" aria-expanded="false" title="設定">' + nkSvg(NK_ICON.gear) + '<span class="yt-qlabel">画質</span></button><div class="yt-pop" hidden></div></div>' +
             '<button type="button" class="yt-b yt-theater" aria-label="シアターモード" title="シアターモード (T)">' + nkSvg(NK_ICON.theater) + "</button>" +
             '<button type="button" class="yt-b yt-mini" aria-label="ミニプレーヤー" title="ミニプレーヤー (I)">' + nkSvg(NK_ICON.mini) + "</button>" +
@@ -2946,17 +2972,51 @@ function nkYtControls(box, vp, opt) {
     /* 音量 */
     muteBtn.onclick = function () { vp.muted = !vp.muted; paint(); };
     volR.addEventListener("input", function () { vp.volume = +volR.value; vp.muted = vp.volume === 0; paint(); });
-    /* 再生速度 */
-    var RATES = [1, 1.25, 1.5, 2, 0.75, 0.5];
-    var ri = 0;
-    speedBtn.onclick = function () {
-        ri = (ri + 1) % RATES.length;
-        vp.playbackRate = RATES[ri];
-        speedBtn.textContent = RATES[ri] + "x";
-        speedBtn.classList.remove("nk-tpop");
-        void speedBtn.offsetWidth;
-        speedBtn.classList.add("nk-tpop");
+    /* 再生速度: メニューから選ぶ。選んだ速度は画質変更などの読み直しでも維持する */
+    var spBtn = speedBtn;
+    var spPop = ui.querySelector(".yt-sppop");
+    if (vp instanceof HTMLMediaElement) {
+        nkSetRate(vp, window.__nkRate || 1);
+    }
+    else {
+        window.__nkRate = 1;
+        spBtn.textContent = "1x";
+    }
+    var spClose = function () {
+        spPop.hidden = true;
+        spBtn.setAttribute("aria-expanded", "false");
     };
+    var spBuild = function () {
+        var cur = window.__nkRate || 1;
+        spPop.innerHTML = '<div class="yt-pop-h">再生速度</div>' + NK_RATES.map(function (r) {
+            return '<button type="button" class="yt-pop-i' + (r === cur ? " on" : "") + '" data-r="' + r + '"><span class="yt-chk">' + (r === cur ? "✓" : "") + "</span>" + (r === 1 ? "標準" : r + "x") + "</button>";
+        }).join("");
+    };
+    spBtn.onclick = function (e) {
+        e.stopPropagation();
+        if (spPop.hidden) {
+            spBuild();
+            spPop.hidden = false;
+            spBtn.setAttribute("aria-expanded", "true");
+        }
+        else
+            spClose();
+    };
+    spPop.onclick = function (e) {
+        var b = e.target.closest("[data-r]");
+        if (!b)
+            return;
+        nkSetRate(vp, +b.dataset.r);
+        spClose();
+    };
+    document.addEventListener("click", function spOutside(e) {
+        if (!ui.isConnected) {
+            document.removeEventListener("click", spOutside);
+            return;
+        }
+        if (!ui.contains(e.target))
+            spClose();
+    });
     var noQ = !!(opt && opt.noQuality);
     var embedQ = !!(opt && opt.embedQuality);
     if (noQ) {
@@ -3384,16 +3444,18 @@ function nkFixWatchMeta(id, v, wrap, siaPromise) {
 }
 /* =====================================================================
    NKYS Tube Pro — single-file client
-   ストリーム: Piped API を最優先
+   ストリーム: NKDLP API（nkdlp-api.hayabo1123.workers.dev）を最優先
    その他: Invidious インスタンスを役割別に分担（検索/急上昇/メタ/コメント/チャンネル）
    ===================================================================== */
 /* 自前 Worker は quiet-salad のみ使用（dark-* Worker は削除済み） */
 var WORKER_API = "https://quiet-salad-6130.c00lkimx01.workers.dev";
-var STREAM_PRIMARY = "https://yt.omada.cafe";
-/* Invidious ストリーム取得の主力 */
+/* ストリーム取得の主力: NKDLP API（/api/v1/stream/{id}）。ページは https 配信のため https を使う（http は混在コンテンツで遮断される） */
+var NKDLP_API = "https://nkdlp-api.hayabo1123.workers.dev";
+/* 相対URLの解決先（Invidious 系の応答用） */
+var STREAM_PRIMARY = "https://inv.nadeko.net";
+/* メタ情報の取得には引き続き yt.omada.cafe を使う（ストリームの取得元からは外した） */
 var OMADA = "https://yt.omada.cafe";
 var INV_STREAM = [
-    OMADA,
     "https://inv.nadeko.net",
     "https://invidious.nerdvpn.de",
     "https://iv.melmac.space",
@@ -3438,10 +3500,7 @@ function applyApiPrefs() {
     var sa = S.settings.streamApi || "invidious";
     var ia = S.settings.infoApi || "invidious";
     var restInv = INV_ALL.filter(function (b) { return b !== WORKER_API; });
-    if (sa === "worker")
-        POOLS.stream = uniq([OMADA].concat(restInv));
-    else
-        POOLS.stream = INV_STREAM.slice();
+    POOLS.stream = INV_STREAM.slice();
     if (ia === "worker") {
         POOLS.video = uniq([OMADA].concat(restInv));
         POOLS.search = POOLS.trending = POOLS.comments = POOLS.channel = restInv.slice();
@@ -3473,7 +3532,7 @@ var LS = {
     catch (_) { } },
 };
 var S = {
-    settings: Object.assign({ proxy: true, adaptive: false, autoplay: true, quality: "auto", theme: "dark", playerMode: "nocookie", saveSearches: true, saveHistory: true, region: "JP", loop: false, mute: false, streamApi: "invidious", infoApi: "invidious" }, LS.get("settings", {})),
+    settings: Object.assign({ proxy: true, adaptive: false, autoplay: true, quality: "auto", theme: "dark", playerMode: "stream", saveSearches: true, saveHistory: true, region: "JP", loop: false, mute: false, streamApi: "nkdlp", infoApi: "invidious" }, LS.get("settings", {})),
     subs: LS.get("subs", []),
     history: LS.get("history", []),
     searches: LS.get("searches", []),
@@ -3486,6 +3545,17 @@ var S = {
     collabs: LS.get("collabs", {}),
 };
 var saveSettings = function () { return LS.set("settings", S.settings); };
+/* 設定の一度きりの移行: 既定のストリーム取得を NKDLP API、既定の再生方法を Stream にする（以後は利用者の選択を尊重） */
+if (S.settings.nkdlpMigrated !== 2) {
+    S.settings.streamApi = "nkdlp";
+    S.settings.playerMode = "stream";
+    S.settings.nkdlpMigrated = 2;
+    saveSettings();
+}
+if (["nkdlp", "piped", "invidious"].indexOf(S.settings.streamApi) < 0) {
+    S.settings.streamApi = "nkdlp";
+    saveSettings();
+}
 var RG = function () { return (S.settings.region || "JP"); };
 /* テーマ: themeMode = "system"(デバイスに合わせる) | "dark" | "light" */
 if (!S.settings.themeMode) {
@@ -4068,148 +4138,215 @@ function pipedToInvidious(d, id) {
         __src: "piped",
     };
 }
-/* yt.omada.cafe: ストリーム取得の主力ソース（Invidious 互換） */
-function omadaVideo(id, signal) {
-    return __awaiter(this, void 0, void 0, function () {
-        var ctl, t, onAbort, r, d;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0:
-                    ctl = new AbortController();
-                    t = setTimeout(function () { return ctl.abort(); }, 7000);
-                    onAbort = function () { return ctl.abort(); };
-                    if (signal)
-                        signal.addEventListener("abort", onAbort, { once: true });
-                    _a.label = 1;
-                case 1:
-                    _a.trys.push([1, , 4, 5]);
-                    return [4 /*yield*/, fetch(OMADA + "/api/v1/videos/" + encodeURIComponent(id) + "?local=true", { signal: ctl.signal, headers: { accept: "application/json" } })];
-                case 2:
-                    r = _a.sent();
-                    if (!r.ok)
-                        throw new Error("omada " + r.status);
-                    return [4 /*yield*/, r.json()];
-                case 3:
-                    d = _a.sent();
-                    if (!d || (!d.formatStreams && !d.adaptiveFormats && !d.hlsUrl))
-                        throw new Error("omada empty");
-                    d.__src = "omada";
-                    return [2 /*return*/, d];
-                case 4:
-                    clearTimeout(t);
-                    if (signal)
-                        signal.removeEventListener("abort", onAbort);
-                    return [7 /*endfinally*/];
-                case 5: return [2 /*return*/];
+/* NKDLP API: ストリーム取得の主力（/api/v1/stream/{id}）。応答は Invidious 互換の形に揃えて以降の処理をそのまま使う */
+async function nkdlpVideo(id, signal) {
+    var ctl = new AbortController();
+    var t = setTimeout(function () { ctl.abort(); }, 9000);
+    var onAbort = function () { ctl.abort(); };
+    if (signal)
+        signal.addEventListener("abort", onAbort, { once: true });
+    try {
+        var r = await fetch(NKDLP_API + "/api/v1/stream/" + encodeURIComponent(id), { signal: ctl.signal, headers: { accept: "application/json" } });
+        if (!r.ok)
+            throw new Error("nkdlp " + r.status);
+        var d = nkdlpNormalize(await r.json(), id);
+        if (!d || !hasStreams(d))
+            throw new Error("nkdlp empty");
+        return d;
+    }
+    finally {
+        clearTimeout(t);
+        if (signal)
+            signal.removeEventListener("abort", onAbort);
+    }
+}
+/* NKDLP の応答を Invidious 互換（formatStreams / adaptiveFormats / hlsUrl）に変換する。
+   Invidious 形式・Piped 形式はそのまま変換し、それ以外は url・高さ・種別（映像/音声）から判定する */
+function nkdlpNormalize(d, id) {
+    if (!d || typeof d !== "object")
+        return null;
+    var base = (d.data && typeof d.data === "object" && !Array.isArray(d.data)) ? d.data : d;
+    var absNk = function (u) {
+        if (/^https?:\/\//i.test(u))
+            return u;
+        return u.charAt(0) === "/" ? NKDLP_API + u : u;
+    };
+    var out = {
+        videoId: id,
+        title: base.title || "",
+        description: base.description || "",
+        descriptionHtml: base.descriptionHtml || "",
+        author: base.author || base.uploader || "",
+        authorId: base.authorId || "",
+        authorThumbnails: base.authorThumbnails || [],
+        viewCount: base.viewCount || base.views || 0,
+        likeCount: base.likeCount || base.likes || 0,
+        publishedText: base.publishedText || base.uploadDate || "",
+        lengthSeconds: base.lengthSeconds || base.duration || 0,
+        recommendedVideos: [],
+        formatStreams: [],
+        adaptiveFormats: [],
+        hlsUrl: "",
+        __src: "nkdlp",
+    };
+    var hls = base.hlsUrl || base.hls || base.hlsManifestUrl || "";
+    if (typeof hls === "string" && hls)
+        out.hlsUrl = absNk(hls);
+    if (base.formatStreams || base.adaptiveFormats) {
+        /* Invidious 形式 */
+        (base.formatStreams || []).forEach(function (f) { if (f && f.url) out.formatStreams.push(Object.assign({}, f, { url: absNk(f.url) })); });
+        (base.adaptiveFormats || []).forEach(function (f) { if (f && f.url) out.adaptiveFormats.push(Object.assign({}, f, { url: absNk(f.url) })); });
+    }
+    else if (base.videoStreams || base.audioStreams) {
+        /* Piped 形式 */
+        var pp = pipedToInvidious(base, id);
+        if (pp) {
+            out.formatStreams = pp.formatStreams;
+            out.adaptiveFormats = pp.adaptiveFormats;
+            out.hlsUrl = out.hlsUrl || pp.hlsUrl;
+        }
+    }
+    else {
+        /* 汎用形式: 配列（streams / formats など）の各要素を種別ごとに振り分ける */
+        var arr = [];
+        ["streams", "formats", "media", "videos", "items", "files", "urls", "adaptive"].forEach(function (k) {
+            if (Array.isArray(base[k]))
+                arr = arr.concat(base[k]);
+        });
+        if (!arr.length && typeof base.url === "string")
+            arr = [base];
+        arr.forEach(function (x) {
+            if (!x || typeof x !== "object")
+                return;
+            var u = x.url || x.link || x.src || x.href;
+            if (typeof u !== "string" || !u)
+                return;
+            u = absNk(u);
+            var mime = String(x.mimeType || x.mime || x.type || x.container || x.format || "").toLowerCase();
+            var isAudio = x.audioOnly === true || /^audio\//.test(mime) || /(^|\/)(m4a|opus|mp3|vorbis)$/.test(mime) || x.hasVideo === false;
+            var resM = String(x.qualityLabel || x.quality || x.label || x.resolution || "").match(/(\d{3,4})\s*p/i) || String(x.resolution || "").match(/x(\d{3,4})/);
+            var h = parseInt(x.height, 10) || (resM ? parseInt(resM[1], 10) : 0);
+            var label = h ? h + "p" : String(x.qualityLabel || x.quality || "auto");
+            var noAudio = x.videoOnly === true || x.hasAudio === false || x.acodec === "none" || x.audioCodec === "none";
+            if (isAudio) {
+                out.adaptiveFormats.push({ url: u, type: /^audio\//.test(mime) ? mime : "audio/" + (mime || "mp4"), itag: String(x.itag || ""), bitrate: +x.bitrate || +x.averageBitrate || 0, qualityLabel: "", audioQuality: String(x.quality || "") });
+            }
+            else if (noAudio) {
+                out.adaptiveFormats.push({ url: u, type: /^video\//.test(mime) ? mime : "video/" + (mime || "mp4"), itag: String(x.itag || ""), qualityLabel: label, bitrate: +x.bitrate || 0 });
+            }
+            else {
+                out.formatStreams.push({ url: u, type: /\//.test(mime) ? mime : "video/" + (mime || "mp4"), itag: String(x.itag || ""), qualityLabel: label });
             }
         });
-    });
+    }
+    return out;
 }
 /* 動画データ: yt.omada.cafe を主・Piped / Invidious を副として同時に取得し、
    ストリームが取れたものを採用する。全部だめなら nocookie 埋め込みに委ねる。 */
 function getVideo(id, signal) {
-    return __awaiter(this, void 0, void 0, function () {
-        var path, key, c, p;
-        var _this = this;
-        return __generator(this, function (_a) {
-            path = "/api/v1/videos/" + encodeURIComponent(id);
-            key = "video|" + id;
-            c = cache.get(key);
-            if (c && Date.now() - c.at < TTL)
-                return [2 /*return*/, c.v];
-            if (inflight.has(key))
-                return [2 /*return*/, inflight.get(key)];
-            p = (function () { return __awaiter(_this, void 0, void 0, function () {
-                var omadaP, pipedP, invP, ytaP, nivP, wkP, R, tag, all, omada, inv, piped, yta, niv, wkv, sp0, chain, v;
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
-                        case 0:
-                            omadaP = omadaVideo(id, signal).catch(function () { return null; });
-                            pipedP = pipedGet("/streams/" + encodeURIComponent(id), signal)
-                                .then(function (d) { return pipedToInvidious(d, id); })
-                                .catch(function () { return null; });
-                            invP = race(POOLS.stream, path + "?local=true", signal, { wave: 5, timeouts: [4500, 8000] })
-                                .catch(function () { return race(POOLS.video, path, signal, { wave: 6, timeouts: [8000] }).catch(function () { return null; }); });
-                            ytaP = ytaVideo(id, signal).catch(function () { return null; });
-                            nivP = nivVideo(id, signal).catch(function () { return null; });
-                            wkP = wkVideo(id, signal).catch(function () { return null; });
-                            R = {};
-                            tag = function (k, pr) { return pr.then(function (x) { R[k] = x; return x; }); };
-                            all = [tag("omada", omadaP), tag("inv", invP), tag("piped", pipedP), tag("yta", ytaP), tag("niv", nivP), tag("wkv", wkP)];
-                            return [4 /*yield*/, new Promise(function (resolve) {
-                                    var done = false, grace = null;
-                                    var fin = function () { if (!done) {
-                                        done = true;
-                                        resolve();
-                                    } };
-                                    all.forEach(function (pr) { return pr.then(function (x) {
-                                        if (x && (x.title || hasStreams(x)) && !grace)
-                                            grace = setTimeout(fin, hasStreams(x) ? 120 : 350);
-                                    }); });
-                                    Promise.all(all).then(fin);
-                                    setTimeout(fin, 2400);
-                                    if (signal)
-                                        signal.addEventListener("abort", fin, { once: true });
-                                })];
-                        case 1:
-                            _a.sent();
-                            if (signal && signal.aborted)
-                                throw Object.assign(new Error("aborted"), { name: "AbortError" });
-                            omada = R.omada, inv = R.inv, piped = R.piped, yta = R.yta, niv = R.niv, wkv = R.wkv;
-                            sp0 = S.settings.streamApi || "invidious";
-                            chain = sp0 === "piped" ? [piped, omada, inv] : sp0 === "worker" ? [wkv, omada, inv, piped] : [omada, inv, piped];
-                            v = chain.map(function (k) { return (hasStreams(R[k]) ? R[k] : null); }).find(Boolean) ||
-                                (wkv || niv || omada || inv || piped || yta);
-                            /* 指定の Worker API を動画詳細の主データとして使い、再生ストリームだけ既存経路を維持する */
-                            if (v) {
-                                v.__streamSource = v.__src || (v === inv ? "invidious" : "unknown");
-                                v.__infoSource = wkv ? "worker" : (v.__src || (v === inv ? "invidious" : "unknown"));
-                            }
-                            if (v && wkv) {
-                                v.title = wkv.title || v.title;
-                                v.author = wkv.author || v.author;
-                                v.authorId = wkv.authorId || v.authorId;
-                                v.authorThumbnails = (wkv.authorThumbnails && wkv.authorThumbnails.length) ? wkv.authorThumbnails : (v.authorThumbnails || []);
-                                v.description = wkv.description || v.description;
-                                v.descriptionHtml = wkv.descriptionHtml || v.descriptionHtml;
-                                v.viewCount = wkv.viewCount || v.viewCount;
-                                v.likeCount = wkv.likeCount || v.likeCount;
-                                v.commentCount = wkv.commentCount || v.commentCount;
-                                v.publishedText = wkv.publishedText || v.publishedText;
-                                v.embedUrl = wkv.embedUrl || v.embedUrl;
-                                v.recommendedVideos = (wkv.recommendedVideos || []).length ? wkv.recommendedVideos : (v.recommendedVideos || []);
-                            }
-                            /* メタ情報が欠けていれば invidiousapi の情報で補完する */
-                            if (v && niv) {
-                                if (!v.title)
-                                    v.title = niv.title;
-                                if (!v.author)
-                                    v.author = niv.author;
-                                if (!v.authorId)
-                                    v.authorId = niv.authorId;
-                                if (!v.description)
-                                    v.description = niv.description;
-                                if (!v.viewCount)
-                                    v.viewCount = niv.viewCount;
-                                if (!v.likeCount)
-                                    v.likeCount = niv.likeCount;
-                                if (!v.publishedText)
-                                    v.publishedText = niv.publishedText;
-                                if (!(v.recommendedVideos || []).length)
-                                    v.recommendedVideos = niv.recommendedVideos;
-                            }
-                            if (!v)
-                                throw new Error("video unavailable");
-                            cache.set(key, { v: v, at: Date.now() });
-                            rememberVideo(v);
-                            return [2 /*return*/, v];
-                    }
-                });
-            }); })().finally(function () { return inflight.delete(key); });
-            inflight.set(key, p);
-            return [2 /*return*/, p];
+    var path = "/api/v1/videos/" + encodeURIComponent(id);
+    var key = "video|" + id;
+    var c = cache.get(key);
+    if (c && Date.now() - c.at < TTL)
+        return Promise.resolve(c.v);
+    if (inflight.has(key))
+        return inflight.get(key);
+    var p = (async function () {
+        /* ストリームは NKDLP API を主力に、Invidious / Piped を副として並行取得する */
+        var nkP = nkdlpVideo(id, signal).catch(function () { return null; });
+        var pipedP = pipedGet("/streams/" + encodeURIComponent(id), signal)
+            .then(function (d) { return pipedToInvidious(d, id); })
+            .catch(function () { return null; });
+        var invP = race(POOLS.stream, path + "?local=true", signal, { wave: 5, timeouts: [4500, 8000] })
+            .catch(function () { return race(POOLS.video, path, signal, { wave: 6, timeouts: [8000] }).catch(function () { return null; }); });
+        var ytaP = ytaVideo(id, signal).catch(function () { return null; });
+        var nivP = nivVideo(id, signal).catch(function () { return null; });
+        var wkP = wkVideo(id, signal).catch(function () { return null; });
+        var R = {};
+        var tag = function (k, pr) { return pr.then(function (x) { R[k] = x; return x; }); };
+        var all = [tag("nk", nkP), tag("inv", invP), tag("piped", pipedP), tag("yta", ytaP), tag("niv", nivP), tag("wkv", wkP)];
+        await new Promise(function (resolve) {
+            var done = false, grace = null;
+            var fin = function () { if (!done) {
+                done = true;
+                resolve();
+            } };
+            all.forEach(function (pr) { return pr.then(function (x) {
+                if (x && !grace && (hasStreams(x) || (x.title && R.nk !== undefined)))
+                    grace = setTimeout(fin, hasStreams(x) ? 120 : 350);
+            }); });
+            Promise.all(all).then(fin);
+            setTimeout(fin, 2400);
+            if (signal)
+                signal.addEventListener("abort", fin, { once: true });
         });
-    });
+        if (signal && signal.aborted)
+            throw Object.assign(new Error("aborted"), { name: "AbortError" });
+        var nk = R.nk, inv = R.inv, piped = R.piped, yta = R.yta, niv = R.niv, wkv = R.wkv;
+        var sp0 = S.settings.streamApi || "nkdlp";
+        var chain = sp0 === "piped" ? [piped, nk, inv] : sp0 === "invidious" ? [inv, nk, piped] : [nk, inv, piped];
+        var v = chain.map(function (x) { return (hasStreams(x) ? x : null); }).find(Boolean) ||
+            (wkv || niv || nk || inv || piped || yta);
+        if (v) {
+            v.__streamSource = v.__src || (v === inv ? "invidious" : "unknown");
+            v.__infoSource = wkv ? "worker" : (v.__src === "nkdlp" ? (inv ? "invidious" : (piped ? "piped" : "unknown")) : (v.__src || (v === inv ? "invidious" : "unknown")));
+        }
+        /* 指定の Worker API を動画詳細の主データとして使う */
+        if (v && wkv) {
+            v.title = wkv.title || v.title;
+            v.author = wkv.author || v.author;
+            v.authorId = wkv.authorId || v.authorId;
+            v.authorThumbnails = (wkv.authorThumbnails && wkv.authorThumbnails.length) ? wkv.authorThumbnails : (v.authorThumbnails || []);
+            v.description = wkv.description || v.description;
+            v.descriptionHtml = wkv.descriptionHtml || v.descriptionHtml;
+            v.viewCount = wkv.viewCount || v.viewCount;
+            v.likeCount = wkv.likeCount || v.likeCount;
+            v.commentCount = wkv.commentCount || v.commentCount;
+            v.publishedText = wkv.publishedText || v.publishedText;
+            v.embedUrl = wkv.embedUrl || v.embedUrl;
+            v.recommendedVideos = (wkv.recommendedVideos || []).length ? wkv.recommendedVideos : (v.recommendedVideos || []);
+        }
+        /* NKDLP の応答にメタ情報（タイトル等）が無ければ Invidious / Piped の情報で補う */
+        if (v && v.__src === "nkdlp") {
+            [inv, piped].forEach(function (m) {
+                if (!m)
+                    return;
+                ["title", "author", "authorId", "description", "descriptionHtml", "viewCount", "likeCount", "publishedText", "lengthSeconds", "authorThumbnails"].forEach(function (k) {
+                    var empty = !v[k] || (Array.isArray(v[k]) && !v[k].length);
+                    if (empty && m[k])
+                        v[k] = m[k];
+                });
+                if (!(v.recommendedVideos || []).length && (m.recommendedVideos || []).length)
+                    v.recommendedVideos = m.recommendedVideos;
+            });
+        }
+        /* メタ情報が欠けていれば invidiousapi の情報で補完する */
+        if (v && niv) {
+            if (!v.title)
+                v.title = niv.title;
+            if (!v.author)
+                v.author = niv.author;
+            if (!v.authorId)
+                v.authorId = niv.authorId;
+            if (!v.description)
+                v.description = niv.description;
+            if (!v.viewCount)
+                v.viewCount = niv.viewCount;
+            if (!v.likeCount)
+                v.likeCount = niv.likeCount;
+            if (!v.publishedText)
+                v.publishedText = niv.publishedText;
+            if (!(v.recommendedVideos || []).length)
+                v.recommendedVideos = niv.recommendedVideos;
+        }
+        if (!v)
+            throw new Error("video unavailable");
+        cache.set(key, { v: v, at: Date.now() });
+        rememberVideo(v);
+        return v;
+    })().finally(function () { inflight.delete(key); });
+    inflight.set(key, p);
+    return p;
 }
 /* カードにホバー/タッチした時点で動画データを先取りし、クリック後の再生開始を高速化 */
 function prefetchVideo(id) {
@@ -6696,7 +6833,7 @@ function pageWatch(id, startAt) {
                     $("#vtitle").outerHTML = "<h1 id=\"vtitle\">".concat(esc(v.title)).concat(isLive(v) ? '<span class="livechip">ライブ</span>' : "", "</h1>");
                     $(".owner").innerHTML = "\n    <img class=\"author-av\" referrerpolicy=\"no-referrer\" src=\"".concat(esc(authorImg(v) || AVATARS.get(v.authorId || "") || NK_AVATAR), "\" alt=\"\">\n    <div>\n      <div class=\"oname\" id=\"goCh\">").concat(collabNameHtml(v.authorId, v.author), "</div>\n      <div class=\"osub\">").concat(v.subCount ? fmtNum(v.subCount) + "人の登録者" : (v.subCountText ? esc(v.subCountText) : ""), "</div>\n    </div>\n    <button class=\"pill ").concat(subbed ? "" : "solid", "\" id=\"btnSub\">").concat(subbed ? "登録済み" : "チャンネル登録", "</button>\n    <div class=\"actions\">\n      <div class=\"pillgroup\">\n        <button class=\"pill\" id=\"btnLike\"><svg viewBox=\"0 0 24 24\"><path d=\"M18.8 9H14V4.6L11 12v8h7l3-8.6zM3 12h4v8H3z\"/></svg>").concat(fmtNum(v.likeCount || 0), "</button>\n        <div class=\"sep\"></div>\n        <button class=\"pill\"><svg viewBox=\"0 0 24 24\" style=\"transform:rotate(180deg)\"><path d=\"M18.8 9H14V4.6L11 12v8h7l3-8.6zM3 12h4v8H3z\"/></svg></button>\n      </div>\n      <button class=\"pill\" id=\"btnShare\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z\"/></svg>\u5171\u6709</button><button class=\"pill\" id=\"btnSave\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z\"/></svg>\u4FDD\u5B58</button>\n      \n      <div class=\"player-more-wrap\">\n        <button class=\"pill player-more\" id=\"btnPlayerMore\" type=\"button\" aria-label=\"\u305D\u306E\u4ED6\u306E\u30D7\u30EC\u30A4\u30E4\u30FC\u64CD\u4F5C\" aria-expanded=\"false\" title=\"\u305D\u306E\u4ED6\">\u22EF</button>\n        <div class=\"player-more-menu\" id=\"playerMoreMenu\" role=\"menu\" hidden>\n          <button type=\"button\" role=\"menuitem\" data-player-action=\"later\">\u5F8C\u3067\u898B\u308B</button>\n          <button type=\"button\" role=\"menuitem\" data-player-action=\"share-time\">\u518D\u751F\u6642\u9593\u4ED8\u304D\u30EA\u30F3\u30AF\u3092\u30B3\u30D4\u30FC</button>\n          <button type=\"button\" role=\"menuitem\" data-player-action=\"theater\" aria-checked=\"false\">\u30B7\u30A2\u30BF\u30FC\u30E2\u30FC\u30C9</button>\n          <button type=\"button\" role=\"menuitem\" data-player-action=\"pip\">\u30DF\u30CB\u30D7\u30EC\u30FC\u30E4\u30FC</button>\n          <div class=\"pm-sep\"></div>\n          <div class=\"pm-label\">\u518D\u751F\u65B9\u6CD5</div>\n          <button type=\"button\" role=\"menuitem\" data-player-action=\"mode-stream\">\u30B9\u30C8\u30EA\u30FC\u30E0\uFF08\u9AD8\u753B\u8CEA\u9078\u629E\u53EF\uFF09</button>\n          <button type=\"button\" role=\"menuitem\" data-player-action=\"mode-nocookie\">Nocookie\uFF08\u72EC\u81EAUI\u30FB\u65E2\u5B9A\uFF09</button>\n          <button type=\"button\" role=\"menuitem\" data-player-action=\"mode-nkui\">Nocookie\uFF08YouTube \u6A19\u6E96UI\uFF09</button>\n          <button type=\"button\" role=\"menuitem\" data-player-action=\"mode-edu\">EDU \u518D\u751F\uFF08youtubeeducation\uFF09</button>\n        </div>\n      </div>\n    </div>");
                     applyAuthorIcon($(".owner img.author-av"), v);
-                    apiName = function (src) { return ({ omada: "INVIDIOUS", invidious: "INVIDIOUS", piped: "PIPED", worker: "WORKER", niv: "INVIDIOUS", siatube: "SIATUBE", yta: "YTAPI" })[src] || "不明"; };
+                    apiName = function (src) { return ({ nkdlp: "NKDLP API", omada: "INVIDIOUS", invidious: "INVIDIOUS", piped: "PIPED", worker: "WORKER", niv: "INVIDIOUS", siatube: "SIATUBE", yta: "YTAPI" })[src] || "不明"; };
                     streamSource = mode0 === "nocookie-ui" ? "YOUTUBE NOCOOKIE" : streams.some(function (s) { return s.lazy; }) ? "外部API" : streams.length ? apiName(v.__streamSource || v.__src) : (mode0 === "edu" ? "YOUTUBE EDUCATION" : "YOUTUBE NOCOOKIE");
                     infoSource = apiName(v.__infoSource || v.__src || (sia ? "siatube" : "unknown"));
                     $("#desc").outerHTML = "<div id=\"desc\"><div class=\"desc-top\"><b>".concat(fmtNum(v.viewCount), "\u56DE\u8996\u8074\u30FB").concat(esc(v.publishedText || ago(v.published)), "</b><div class=\"desc-sources\"><span id=\"infoApiBadge\">\u60C5\u5831API: ").concat(infoSource, "</span><span id=\"streamApiBadge\">\u30B9\u30C8\u30EA\u30FC\u30E0API: ").concat(streamSource, "</span></div></div><div class=\"desc-body\">").concat(v.description ? descriptionHtml(v.description) : '<span class="nk-muted">概要欄を読み込み中…</span>', "</div><button type=\"button\" class=\"desc-more\" aria-expanded=\"false\">\u3082\u3063\u3068\u898B\u308B</button></div>");
@@ -6715,13 +6852,16 @@ function pageWatch(id, startAt) {
                             if (i >= 0)
                                 start = i;
                         }
-                        else if (S.settings.adaptive) {
-                            i = streams.findIndex(function (s) { return s.adaptive; });
-                            if (i >= 0)
-                                start = i;
-                        }
-                        else if (streams.some(function (s) { return s.lazy; })) {
-                            i = streams.findIndex(function (s) { return s.label.startsWith("720"); });
+                        else {
+                            /* 自動: ライブは HLS、高画質モードなら映像+音声の最高画質、そうでなければ音声込みの最高画質 */
+                            var pickIdx = function (fn) { return streams.findIndex(fn); };
+                            i = pickIdx(function (s) { return s.live; });
+                            if (i < 0 && S.settings.adaptive)
+                                i = pickIdx(function (s) { return s.adaptive; });
+                            if (i < 0 && streams.some(function (s) { return s.lazy; }))
+                                i = pickIdx(function (s) { return s.label.startsWith("720"); });
+                            if (i < 0)
+                                i = pickIdx(function (s) { return !s.adaptive && !s.lazy; });
                             if (i >= 0)
                                 start = i;
                         }
@@ -7261,11 +7401,84 @@ function wireModeToggle(id, v) {
     });
     sync();
 }
+/* 映像と音声が別々の URL（高画質）のときの同期。音声は隠した <audio> で流し、映像側の再生・停止・シーク・音量・速度に合わせる */
+function nkDualSet(vp, audioUrl) {
+    var st = vp.__nkDual;
+    if (!audioUrl) {
+        if (st) {
+            st.detach();
+            vp.__nkDual = null;
+        }
+        return;
+    }
+    if (!st) {
+        var aud = document.createElement("audio");
+        aud.preload = "auto";
+        aud.hidden = true;
+        (vp.parentNode || document.body).appendChild(aud);
+        var fix = function (force) {
+            if (!aud.getAttribute("src"))
+                return;
+            if (force || Math.abs((vp.currentTime || 0) - aud.currentTime) > 0.25) {
+                try {
+                    aud.currentTime = vp.currentTime || 0;
+                }
+                catch (_) { }
+            }
+        };
+        /* 映像が再生中なのに音声が止まっていれば（途中の中断などで）再開する */
+        var resume = function () {
+            if (!vp.paused && aud.getAttribute("src") && aud.paused)
+                aud.play().catch(function () { });
+        };
+        var handlers = {
+            play: function () { if (aud.getAttribute("src")) aud.play().catch(function () { }); },
+            playing: function () { fix(true); resume(); },
+            canplay: resume,
+            pause: function () { aud.pause(); },
+            waiting: function () { aud.pause(); },
+            emptied: function () { aud.pause(); },
+            ended: function () { aud.pause(); },
+            seeking: function () { fix(true); },
+            seeked: function () { fix(true); },
+            timeupdate: function () { fix(false); resume(); },
+            ratechange: function () { aud.playbackRate = vp.playbackRate; },
+            volumechange: function () { aud.volume = vp.volume; aud.muted = vp.muted; },
+        };
+        Object.keys(handlers).forEach(function (ev) { vp.addEventListener(ev, handlers[ev]); });
+        st = vp.__nkDual = {
+            aud: aud,
+            detach: function () {
+                Object.keys(handlers).forEach(function (ev) { vp.removeEventListener(ev, handlers[ev]); });
+                aud.pause();
+                aud.removeAttribute("src");
+                aud.load();
+                aud.remove();
+            },
+        };
+    }
+    var a = st.aud;
+    a.volume = vp.volume;
+    a.muted = vp.muted;
+    /* load() は再生速度を defaultPlaybackRate に戻すため、読み込みの前に既定値を、後に現在値を入れる */
+    a.defaultPlaybackRate = vp.playbackRate;
+    a.src = audioUrl;
+    a.load();
+    a.playbackRate = vp.playbackRate;
+    try {
+        a.currentTime = vp.currentTime || 0;
+    }
+    catch (_) { }
+    if (!vp.paused)
+        a.play().catch(function () { });
+}
 function setSrc(vp, s) {
     if (!s)
         return Promise.reject(new Error("no stream"));
+    var toUrl = function (u) { return s.direct ? u : (USE_PROXY ? px(u) : u); };
     var apply = function (u) {
-        vp.src = s.direct ? u : (USE_PROXY ? px(u) : u);
+        nkDualSet(vp, s.audioUrl ? toUrl(s.audioUrl) : "");
+        vp.src = toUrl(u);
         vp.load();
         if (S.settings.autoplay)
             vp.play().catch(function () { });
@@ -7353,14 +7566,35 @@ function pickStreams(v) {
             return;
         out.push({ url: abs(f.url), label: (f.qualityLabel || f.quality || "auto") + " (音声込)", h: parseInt(f.qualityLabel) || 0, adaptive: false });
     });
-    if (S.settings.adaptive) {
-        (v.adaptiveFormats || []).filter(function (f) { return f.url && /video\/mp4/.test(f.type || "") && f.qualityLabel; }).forEach(function (f) {
-            out.push({ url: abs(f.url), label: f.qualityLabel + " (映像のみ)", h: parseInt(f.qualityLabel) || 0, adaptive: true });
+    /* 映像のみの mp4/webm は、音声トラック（mp4 優先・高ビットレート）と組にして同時に再生する。音声が無ければ一覧に出さない */
+    var fmts = (v.adaptiveFormats || []).filter(function (f) { return f && f.url; });
+    var audios = fmts.filter(function (f) { return /^audio\//.test(f.type || ""); });
+    var audioPool = audios.filter(function (f) { return /mp4/.test(f.type || ""); });
+    if (!audioPool.length)
+        audioPool = audios;
+    audioPool.sort(function (a, b) { return (+b.bitrate || 0) - (+a.bitrate || 0); });
+    var audio = audioPool[0];
+    if (audio) {
+        var seen = {};
+        var vids = fmts.filter(function (f) { return /^video\//.test(f.type || "") && parseInt(f.qualityLabel, 10) > 0; });
+        vids.sort(function (a, b) { return (/mp4/.test(b.type || "") ? 1 : 0) - (/mp4/.test(a.type || "") ? 1 : 0); });
+        vids.forEach(function (f) {
+            var h = parseInt(f.qualityLabel, 10) || 0;
+            if (seen[h])
+                return;
+            seen[h] = true;
+            out.push({ url: abs(f.url), audioUrl: abs(audio.url), label: h + "p (高画質)", h: h, adaptive: true });
         });
     }
     if (v.hlsUrl)
-        out.unshift({ url: abs(v.hlsUrl), label: "LIVE (HLS)", h: 9999, adaptive: true });
-    out.sort(function (a, b) { return b.h - a.h; });
+        out.unshift({ url: abs(v.hlsUrl), label: "LIVE (HLS)", h: 9999, adaptive: true, live: true });
+    /* 同じ高さなら、高画質モードのときは映像+音声を、そうでなければ音声込みを先に */
+    out.sort(function (a, b) {
+        if (b.h !== a.h)
+            return b.h - a.h;
+        var d = (a.adaptive ? 1 : 0) - (b.adaptive ? 1 : 0);
+        return S.settings.adaptive ? -d : d;
+    });
     return out;
 }
 function loadSide(v) {
@@ -7609,9 +7843,9 @@ function keyBindings(vp) {
         else if (k === "i")
             (_b = window.__nkysOpenPip) === null || _b === void 0 ? void 0 : _b.call(window);
         else if (k === ">")
-            vp.playbackRate = Math.min(2, vp.playbackRate + .25);
+            nkStepRate(vp, 1);
         else if (k === "<")
-            vp.playbackRate = Math.max(.25, vp.playbackRate - .25);
+            nkStepRate(vp, -1);
         else if (k === "escape" && document.body.classList.contains("theater"))
             (_c = window.__nkysToggleTheater) === null || _c === void 0 ? void 0 : _c.call(window);
         else if (/^[0-9]$/.test(k) && vp.duration)
@@ -11289,9 +11523,9 @@ document.addEventListener("scroll", function () {
         '<div class="cp-card">' +
         '<div class="cp-cardlabel">ストリーム取得 API</div>' +
         '<div class="cp-selectwrap"><select id="cpStreamApi">' +
+        '<option value="nkdlp">NKDLP API（既定）</option>' +
         '<option value="invidious">Invidious API</option>' +
         '<option value="piped">Piped API</option>' +
-        '<option value="worker">Worker API</option>' +
         '</select></div>' +
         '</div>' +
         '<div class="cp-card">' +
@@ -11358,7 +11592,7 @@ document.addEventListener("scroll", function () {
         var cur = (mode === "nocookie" || mode === "edu" || mode === "nocookie-ui") ? mode : (mode === "nocookie-native" ? "" : "stream");
         panel.querySelectorAll('input[name="cpMode"]').forEach(function (r) { r.checked = r.value === cur; });
         panel.querySelectorAll(".cp-radio").forEach(function (l) { return l.classList.toggle("on", l.querySelector("input").checked); });
-        $("#cpStreamApi").value = S.settings.streamApi || "invidious";
+        $("#cpStreamApi").value = S.settings.streamApi || "nkdlp";
         $("#cpInfoApi").value = S.settings.infoApi || "invidious";
         syncQuality();
     };
