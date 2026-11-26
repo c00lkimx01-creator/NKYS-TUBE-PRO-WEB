@@ -2012,6 +2012,44 @@ body.is-watch #commentHead,.watch #commentHead{font-size:20px;font-weight:600}
 .grid .card .msub,.shelf .msub{font-size:12px;color:var(--fg-dim)}
 .grid .card .meta,.shelf .meta{margin-top:10px}
 </style>
+<style id="nkys-v6">
+/* 1) Nocookie の白い隙間: iframe 既定の 2px 枠を外し、映像の箱を黒で埋める */
+#playerWrap iframe,#ytFrame,#nkMini iframe{border:0 !important;outline:0 !important;background:#000 !important;display:block}
+#playerWrap{background:#000 !important}
+
+/* 2) 視聴ページではサイドバーを隠す（YouTube の再生画面と同じ）。ハンバーガーで一時的に開く */
+body.is-watch #sidebar{transform:translateX(-100%);transition:transform .2s ease}
+body.is-watch #sidebar.open{transform:none;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+body.is-watch #sidebar.open + #scrim{display:block;opacity:1;pointer-events:auto}
+body.is-watch main,body.is-watch main.mini{margin-left:0 !important}
+
+/* 3) ミニプレーヤー（YouTube と同じ見た目）: 黒い映像 ＋ 下にタイトル・チャンネル・展開ボタン */
+#nkMiniCard{position:fixed;right:18px;bottom:18px;width:360px;background:#212121;color:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 36px rgba(0,0,0,.6);z-index:950}
+#nkMiniCard[hidden]{display:none}
+#nkMiniCard .nk-mini-info,#nkMini .nkm-info{display:flex;align-items:flex-start;gap:6px;padding:10px 6px 12px 14px;background:#212121;cursor:move;touch-action:none;user-select:none}
+#nkMiniCard .nk-mini-text,#nkMini .nkm-text{flex:1;min-width:0}
+#nkMiniCard .nk-mini-title,#nkMini .nkm-title{padding:0 !important;margin:0;font-size:14px;font-weight:500;line-height:20px;color:#fff;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}
+#nkMiniCard .nk-mini-sub,#nkMini .nkm-sub{margin-top:4px;font-size:12px;line-height:16px;color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nkMiniCard .nk-mini-expand,#nkMini .nkm-expand{width:36px;height:36px;flex:none;border:0;border-radius:50%;background:transparent;color:#fff;display:grid;place-items:center;cursor:pointer;padding:0;margin-top:-2px}
+#nkMiniCard .nk-mini-expand:hover,#nkMini .nkm-expand:hover{background:rgba(255,255,255,.12)}
+#nkMiniCard .nk-mini-expand svg,#nkMini .nkm-expand svg{width:24px;height:24px;fill:#fff}
+#nkMini{background:#212121 !important;border:0 !important;border-radius:12px !important;box-shadow:0 12px 36px rgba(0,0,0,.6) !important;color:#fff;overflow:hidden}
+@media (min-width:841px){ #nkMini{width:360px !important} }
+#nkMini .nkm-frame{position:relative;width:100%;aspect-ratio:16/9;background:#000}
+#nkMini .nkm-close{position:absolute;top:8px;right:8px;width:32px;height:32px;z-index:2;background:rgba(0,0,0,.55);color:#fff;border:0;border-radius:50%;display:grid;place-items:center;cursor:pointer;padding:0;opacity:0;transition:opacity .15s}
+#nkMini:hover .nkm-close,#nkMini .nkm-close:focus-visible{opacity:1}
+#nkMini .nkm-close svg{width:18px;height:18px;fill:#fff}
+#nkMiniCard .nk-mini-bar,#playerWrap.nk-mini .nk-mini-bar{display:flex;position:absolute;top:0;left:0;right:0;z-index:7;justify-content:flex-end;gap:4px;padding:6px 6px 24px;background:linear-gradient(rgba(0,0,0,.7),rgba(0,0,0,0));opacity:0;transition:opacity .15s}
+#playerWrap.nk-mini:hover .nk-mini-bar,#playerWrap.nk-mini .nk-mini-bar:focus-within{opacity:1}
+#playerWrap.nk-mini{position:relative !important;top:auto !important;left:auto !important;right:auto !important;bottom:auto !important;width:100% !important;height:auto !important;aspect-ratio:16/9;border-radius:0 !important;box-shadow:none !important;background:#000 !important;overflow:hidden}
+#playerWrap.nk-mini video,#playerWrap.nk-mini iframe{border-radius:0}
+.nk-stage.nk-mini-hold{height:auto;aspect-ratio:16/9;background:#000}
+/* 下のシークバーだけ常に見せ、操作バーは映像にカーソルを載せた時だけ */
+#playerWrap.nk-mini:not(:hover) .yt-row{opacity:0 !important;pointer-events:none}
+#playerWrap.nk-mini:not(:hover) .yt-ctrl{background:none !important}
+#playerWrap.nk-mini:not(:hover) .yt-prog{height:3px}
+@media (max-width:840px){ #nkMiniCard{width:min(300px,calc(100vw - 24px));right:12px;bottom:12px} }
+</style>
 </head>
 <style id="nk-yt-theme">
 /* ===== NKYS Tube Pro: YouTube風テーマ（v2 上書き） ===== */
@@ -2401,6 +2439,22 @@ var nkFmtTime = function (s) {
 /* 埋め込み(nocookie)用の画質メニュー。YouTube が返す候補だけを出し、実際の画質をラベルに反映する */
 var NK_QLABEL = { hd2160: "2160p", hd1440: "1440p", hd1080: "1080p", hd720: "720p", large: "480p", medium: "360p", small: "240p", tiny: "144p", auto: "自動", default: "自動" };
 /* YouTube 埋め込みが画質指定を受け付けなかったとき、近い画質のストリーム再生に切り替える */
+/* 取得の失敗理由（NKDLP のどの段階で失敗したか）を画面の案内に使う */
+function nkEsc(x) {
+    return String(x).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; });
+}
+function nkReason(id) {
+    var l = window.__nkdlpLast;
+    if (!l || l.videoId !== id || l.ok)
+        return "";
+    return "（" + l.reason + (l.extra ? "：" + l.extra : "") + "）";
+}
+function nkFallbackMsg(id) {
+    var l = window.__nkdlpLast;
+    if (l && l.ok && l.videoId === id)
+        return "ストリームは取得できましたが、映像の読み込みが拒否されました（取得元 URL の IP 制限の可能性）。Nocookie 再生に切り替えました";
+    return "ストリームを再生できなかったため Nocookie 再生に切り替えました" + nkReason(id);
+}
 function nkQualityFallback(want) {
     var H = { hd2160: 2160, hd1440: 1440, hd1080: 1080, hd720: 720, large: 480, medium: 360, small: 240, tiny: 144 };
     var h = H[want] || 0;
@@ -2743,32 +2797,32 @@ var NK_MINI_ICON = {
 };
 function nkMiniSvg(d) { return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + d + '"/></svg>'; }
 
-function nkMiniEnsureBar(w) {
-    var bar = w.querySelector(".nk-mini-bar");
-    if (bar) return bar;
-    bar = document.createElement("div");
-    bar.className = "nk-mini-bar";
-    bar.innerHTML = '<span class="nk-mini-title"></span>' +
-        '<button type="button" class="nk-mini-btn nk-mini-back" aria-label="元のサイズに戻す" title="元に戻す">' + nkMiniSvg(NK_MINI_ICON.back) + "</button>" +
-        '<button type="button" class="nk-mini-btn nk-mini-close" aria-label="閉じる" title="閉じる">' + nkMiniSvg(NK_MINI_ICON.close) + "</button>";
-    w.appendChild(bar);
-    bar.querySelector(".nk-mini-back").onclick = function (e) { e.stopPropagation(); nkMiniSet(false); };
-    bar.querySelector(".nk-mini-close").onclick = function (e) {
-        e.stopPropagation();
-        var vp = w.querySelector("video");
-        if (vp) vp.pause();
-        nkMiniSet(false);
-    };
-    /* ミニプレイヤーはバーをつかんでどこへでも移動できる */
-    bar.onpointerdown = function (e) {
-        if (e.target.closest && e.target.closest("button")) return;
-        var r = w.getBoundingClientRect();
-        var ox = e.clientX - r.left, oy = e.clientY - r.top;
+var NK_MINI_UP = "M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z";
+/* ミニプレーヤーのカード（YouTube と同じ見た目）。映像（#playerWrap）はこのカードの中へ移す */
+function nkMiniCard() {
+    var card = document.getElementById("nkMiniCard");
+    if (card)
+        return card;
+    card = document.createElement("div");
+    card.id = "nkMiniCard";
+    card.hidden = true;
+    card.innerHTML = '<div class="nk-mini-info">' +
+        '<div class="nk-mini-text"><div class="nk-mini-title"></div><div class="nk-mini-sub"></div></div>' +
+        '<button type="button" class="nk-mini-expand" aria-label="動画ページに戻る" title="展開">' + nkMiniSvg(NK_MINI_UP) + "</button></div>";
+    document.body.appendChild(card);
+    card.querySelector(".nk-mini-expand").onclick = function (e) { e.stopPropagation(); nkMiniSet(false); };
+    /* タイトル欄をつかんでカードごと移動（ボタンは除く） */
+    card.querySelector(".nk-mini-info").onpointerdown = function (e) {
+        if (e.target.closest && e.target.closest("button"))
+            return;
+        var r = card.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top;
         var move = function (ev) {
-            var x = Math.max(0, Math.min(window.innerWidth - w.offsetWidth, ev.clientX - ox));
-            var y = Math.max(0, Math.min(window.innerHeight - w.offsetHeight, ev.clientY - oy));
-            w.style.left = x + "px"; w.style.top = y + "px";
-            w.style.right = "auto"; w.style.bottom = "auto";
+            var x = Math.max(0, Math.min(window.innerWidth - card.offsetWidth, ev.clientX - ox));
+            var y = Math.max(0, Math.min(window.innerHeight - card.offsetHeight, ev.clientY - oy));
+            card.style.left = x + "px";
+            card.style.top = y + "px";
+            card.style.right = "auto";
+            card.style.bottom = "auto";
         };
         var up = function () {
             document.removeEventListener("pointermove", move);
@@ -2777,27 +2831,78 @@ function nkMiniEnsureBar(w) {
         document.addEventListener("pointermove", move);
         document.addEventListener("pointerup", up);
     };
+    return card;
+}
+/* 映像の上に重ねる操作（展開・閉じる）。カーソルを載せた時だけ見える */
+function nkMiniEnsureBar(w) {
+    var bar = w.querySelector(".nk-mini-bar");
+    if (bar)
+        return bar;
+    bar = document.createElement("div");
+    bar.className = "nk-mini-bar";
+    bar.innerHTML = '<button type="button" class="nk-mini-btn nk-mini-back" aria-label="動画ページに戻る" title="展開">' + nkMiniSvg(NK_MINI_ICON.back) + "</button>" +
+        '<button type="button" class="nk-mini-btn nk-mini-close" aria-label="閉じる" title="閉じる">' + nkMiniSvg(NK_MINI_ICON.close) + "</button>";
+    w.appendChild(bar);
+    bar.querySelector(".nk-mini-back").onclick = function (e) { e.stopPropagation(); nkMiniSet(false); };
+    bar.querySelector(".nk-mini-close").onclick = function (e) {
+        e.stopPropagation();
+        var vp = w.querySelector("video");
+        if (vp)
+            vp.pause();
+        nkMiniSet(false);
+    };
     return bar;
 }
-
 function nkMiniSet(on) {
     var w = document.getElementById("playerWrap");
-    if (!w) return false;
-    var bar = nkMiniEnsureBar(w);
-    var t = document.getElementById("vtitle");
-    bar.querySelector(".nk-mini-title").textContent = t ? t.textContent : "";
-    var stage = w.parentNode;
-    if (on) { w.classList.add("nk-mini"); if (stage && stage.classList) stage.classList.add("nk-mini-hold"); }
-    else {
-        w.classList.remove("nk-mini");
-        if (stage && stage.classList) stage.classList.remove("nk-mini-hold");
-        w.style.left = ""; w.style.top = ""; w.style.right = ""; w.style.bottom = "";
+    if (!w)
+        return false;
+    var card = nkMiniCard();
+    nkMiniEnsureBar(w);
+    if (on) {
+        if (w.parentNode !== card) {
+            w.__home = w.parentNode;
+            card.insertBefore(w, card.firstChild);
+            if (w.__home && w.__home.classList)
+                w.__home.classList.add("nk-mini-hold");
+        }
+        var t = document.getElementById("vtitle"), a = document.querySelector(".owner .oname");
+        card.querySelector(".nk-mini-title").textContent = t ? t.textContent : "";
+        card.querySelector(".nk-mini-sub").textContent = a ? a.textContent : "";
+        w.classList.add("nk-mini");
+        card.hidden = false;
+        return true;
     }
+    w.classList.remove("nk-mini");
+    card.hidden = true;
+    card.style.left = card.style.top = card.style.right = card.style.bottom = "";
+    var home = w.__home;
+    if (home && w.parentNode !== home) {
+        var q = home.querySelector("#qsel");
+        home.insertBefore(w, q && q.parentNode === home ? q : null);
+    }
+    if (home && home.classList)
+        home.classList.remove("nk-mini-hold");
     return true;
+}
+/* 視聴ページを離れたら、ミニ表示の映像は止めて片付ける */
+function nkMiniDrop() {
+    var card = document.getElementById("nkMiniCard");
+    if (!card || card.hidden)
+        return;
+    var w = document.getElementById("playerWrap");
+    if (w) {
+        var v = w.querySelector("video");
+        if (v)
+            v.pause();
+        w.remove();
+    }
+    card.hidden = true;
 }
 window.__nkMiniToggle = function () {
     var w = document.getElementById("playerWrap");
-    if (!w) return false;
+    if (!w)
+        return false;
     nkMiniSet(!w.classList.contains("nk-mini"));
     return true;
 };
@@ -4138,27 +4243,78 @@ function pipedToInvidious(d, id) {
         __src: "piped",
     };
 }
-/* NKDLP API: ストリーム取得の主力（/api/v1/stream/{id}）。応答は Invidious 互換の形に揃えて以降の処理をそのまま使う */
+/* NKDLP API: ストリーム取得の主力（/api/v1/stream/{id}）。応答は Invidious 互換の形に揃えて以降の処理をそのまま使う。
+   失敗した段階と理由は window.__nkdlpLast に残し、画面の案内に使う（どこで失敗したか分かるように） */
 async function nkdlpVideo(id, signal) {
-    var ctl = new AbortController();
-    var t = setTimeout(function () { ctl.abort(); }, 9000);
-    var onAbort = function () { ctl.abort(); };
-    if (signal)
-        signal.addEventListener("abort", onAbort, { once: true });
-    try {
-        var r = await fetch(NKDLP_API + "/api/v1/stream/" + encodeURIComponent(id), { signal: ctl.signal, headers: { accept: "application/json" } });
-        if (!r.ok)
-            throw new Error("nkdlp " + r.status);
-        var d = nkdlpNormalize(await r.json(), id);
-        if (!d || !hasStreams(d))
-            throw new Error("nkdlp empty");
-        return d;
-    }
-    finally {
-        clearTimeout(t);
+    var fail = function (reason, extra) {
+        window.__nkdlpLast = { ok: false, reason: reason, extra: extra || "", videoId: id, at: Date.now() };
+        return reason;
+    };
+    var last = "";
+    for (var attempt = 0; attempt < 2; attempt++) {
+        if (signal && signal.aborted)
+            break;
+        var ctl = new AbortController();
+        var timedOut = false;
+        var t = setTimeout(function () { timedOut = true; ctl.abort(); }, 15000);
+        var onAbort = function () { ctl.abort(); };
         if (signal)
-            signal.removeEventListener("abort", onAbort);
+            signal.addEventListener("abort", onAbort, { once: true });
+        var retryable = false;
+        try {
+            var r = await fetch(NKDLP_API + "/api/v1/stream/" + encodeURIComponent(id), { signal: ctl.signal, headers: { accept: "application/json" } });
+            var txt = await r.text();
+            if (!r.ok) {
+                var em = "";
+                try {
+                    var ej = JSON.parse(txt);
+                    em = ej.error || ej.message || "";
+                }
+                catch (_) {
+                    em = txt.slice(0, 80);
+                }
+                last = fail("NKDLP が HTTP " + r.status + " を返しました", String(em));
+                retryable = r.status >= 500;
+            }
+            else {
+                var body = null;
+                try {
+                    body = JSON.parse(txt);
+                }
+                catch (_) { }
+                if (!body) {
+                    last = fail("NKDLP の応答が JSON ではありません", txt.slice(0, 80));
+                }
+                else {
+                    var d = nkdlpNormalize(body, id);
+                    if (d && hasStreams(d)) {
+                        window.__nkdlpLast = { ok: true, reason: "", extra: "", videoId: id, at: Date.now(), count: d.formatStreams.length + d.adaptiveFormats.length };
+                        return d;
+                    }
+                    last = fail("NKDLP の応答に再生できる形式がありません", String(body.error || body.message || ""));
+                }
+            }
+        }
+        catch (e) {
+            if (signal && signal.aborted)
+                last = fail("読み込みを中断しました");
+            else if (timedOut)
+                last = fail("NKDLP の応答がタイムアウトしました（15秒）");
+            else
+                last = fail("NKDLP に接続できません（通信エラー）", String(e && e.message || e));
+            retryable = !(signal && signal.aborted);
+        }
+        finally {
+            clearTimeout(t);
+            if (signal)
+                signal.removeEventListener("abort", onAbort);
+        }
+        if (!retryable)
+            break;
+        if (attempt === 0)
+            await new Promise(function (res) { setTimeout(res, 800); });
     }
+    throw new Error(last || "NKDLP failed");
 }
 /* NKDLP の応答を Invidious 互換（formatStreams / adaptiveFormats / hlsUrl）に変換する。
    Invidious 形式・Piped 形式はそのまま変換し、それ以外は url・高さ・種別（映像/音声）から判定する */
@@ -4294,18 +4450,31 @@ function getVideo(id, signal) {
         var R = {};
         var tag = function (k, pr) { return pr.then(function (x) { R[k] = x; return x; }); };
         var all = [tag("nk", nkP), tag("inv", invP), tag("piped", pipedP), tag("yta", ytaP), tag("niv", nivP), tag("wkv", wkP)];
+        /* NKDLP は主力なので、再生できる候補が揃うまで待つ（応答が遅くても取得失敗にしない）。
+           他の取得元が先に再生できる候補を出した場合だけ、NKDLP を最大 4 秒待つ。 */
         await new Promise(function (resolve) {
-            var done = false, grace = null;
+            var done = false, gt = 0;
             var fin = function () { if (!done) {
                 done = true;
+                clearTimeout(gt);
                 resolve();
             } };
-            all.forEach(function (pr) { return pr.then(function (x) {
-                if (x && !grace && (hasStreams(x) || (x.title && R.nk !== undefined)))
-                    grace = setTimeout(fin, hasStreams(x) ? 120 : 350);
-            }); });
+            var hasAny = function () {
+                return [R.nk, R.inv, R.piped, R.yta, R.niv, R.wkv].some(function (x) { return hasStreams(x); });
+            };
+            var check = function () {
+                if (done)
+                    return;
+                var nkDone = R.nk !== undefined;
+                clearTimeout(gt);
+                if (nkDone && hasAny())
+                    gt = setTimeout(fin, 120);
+                else if (hasAny())
+                    gt = setTimeout(fin, 4000);
+            };
+            all.forEach(function (pr) { pr.then(check); });
             Promise.all(all).then(fin);
-            setTimeout(fin, 2400);
+            setTimeout(fin, 15000);
             if (signal)
                 signal.addEventListener("abort", fin, { once: true });
         });
@@ -7323,7 +7492,7 @@ function mountPlayer(mode, opt) {
                 return;
             fellBack_1 = true;
             opt.autoFallbackTried = true;
-            toast("ストリームを再生できなかったため Nocookie 再生に切り替えました（取得URLが拒否された可能性があります）");
+            toast(nkFallbackMsg(opt.id));
             window.__nkysSetMode && window.__nkysSetMode("nocookie", { temp: true });
         };
         var attempt_1 = function () {
@@ -7348,13 +7517,13 @@ function mountPlayer(mode, opt) {
         attempt_1();
     }
     else if (opt.v && mode === "stream") {
-        toast("ストリームを取得できなかったため Nocookie 再生で表示します");
+        toast("ストリームを取得できなかったため Nocookie 再生で表示します" + nkReason(opt.id));
         /* __nkysSetMode は直後の wireModeToggle で登録されるので、一拍遅らせる */
         setTimeout(function () { window.__nkysSetMode && window.__nkysSetMode("nocookie", { temp: true }); }, 0);
         return;
     }
     else if (opt.v) {
-        box.insertAdjacentHTML("beforeend", '<div class="empty nk-nostream" style="position:absolute;top:0;right:0;bottom:0;left:0;display:grid;place-items:center;align-content:center;gap:12px;color:#fff">ストリームを取得できませんでした<button type="button" class="pill" data-nk-embed>埋め込みで再生</button></div>');
+        box.insertAdjacentHTML("beforeend", '<div class="empty nk-nostream" style="position:absolute;top:0;right:0;bottom:0;left:0;display:grid;place-items:center;align-content:center;gap:12px;color:#fff">ストリームを取得できませんでした' + nkEsc(nkReason(opt.id)) + '<button type="button" class="pill" data-nk-embed>埋め込みで再生</button></div>');
         var eb = box.querySelector("[data-nk-embed]");
         if (eb)
             eb.onclick = function () { return window.__nkysSetMode && window.__nkysSetMode("nocookie"); };
@@ -7505,7 +7674,7 @@ function nkSwapStream(vp, s) {
         };
         vp.addEventListener("loadeddata", onOk);
         vp.addEventListener("error", onBad);
-        timer = setTimeout(function () { finish(false); }, 10000);
+        timer = setTimeout(function () { finish(false); }, 20000);
         setSrc(vp, s).catch(function () { finish(false); });
     });
 }
@@ -7800,6 +7969,10 @@ function pickStreams(v) {
     /* 映像のみの mp4/webm は、音声トラック（mp4 優先・高ビットレート）と組にして同時に再生する。音声が無ければ一覧に出さない */
     var fmts = (v.adaptiveFormats || []).filter(function (f) { return f && f.url; });
     var audios = fmts.filter(function (f) { return /^audio\//.test(f.type || ""); });
+    /* 同じ音声には xtags=drc（ダイナミックレンジ圧縮版）もある。通常版があれば必ず通常版を使う（圧縮版はビットレートが僅かに高いので選ばれてしまう） */
+    var plainAudio = audios.filter(function (f) { return !/xtags=drc/.test(f.url || ""); });
+    if (plainAudio.length)
+        audios = plainAudio;
     var audioPool = audios.filter(function (f) { return /mp4/.test(f.type || ""); });
     if (!audioPool.length)
         audioPool = audios;
@@ -11476,15 +11649,38 @@ document.querySelectorAll("#sidebar .snav").forEach(function (n, i) { n.style.se
     b.onclick = toggle;
     b.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
 })();
+/* 視聴ページでは左メニューを隠しておき、ハンバーガーで一時的に開く（閉じると元のミニ表示に戻す） */
+function nkWatchDrawer(open) {
+    var sb = $("#sidebar");
+    if (open) {
+        sb.dataset.wasMini = sb.classList.contains("mini") ? "1" : "";
+        sb.classList.remove("mini");
+        sb.classList.add("open");
+    }
+    else {
+        sb.classList.remove("open");
+        if (sb.dataset.wasMini === "1")
+            sb.classList.add("mini");
+        sb.dataset.wasMini = "";
+    }
+}
 $("#btnMenu").onclick = function () {
     if (innerWidth <= 840) {
         $("#sidebar").classList.toggle("open");
         return;
     }
+    if (document.body.classList.contains("is-watch")) {
+        nkWatchDrawer(!$("#sidebar").classList.contains("open"));
+        return;
+    }
     $("#sidebar").classList.toggle("mini");
     $("#main").classList.toggle("mini");
 };
-$("#scrim").onclick = function () { return $("#sidebar").classList.remove("open"); };
+$("#scrim").onclick = function () {
+    if (document.body.classList.contains("is-watch") && innerWidth > 840)
+        return nkWatchDrawer(false);
+    return $("#sidebar").classList.remove("open");
+};
 $("#btnTheme").onclick = function () {
     var order = ["system", "dark", "light"];
     var cur = order.indexOf(S.settings.themeMode || "system");
@@ -11543,6 +11739,10 @@ render();
             n.classList.toggle("on", p === "/" ? path === "/" : path.indexOf(p) === 0);
         });
         document.body.classList.toggle("is-watch", /^\/watch/.test(path));
+        if (!/^\/watch/.test(path)) {
+            nkWatchDrawer(false);
+            nkMiniDrop();
+        }
         document.body.classList.toggle("is-shorts", /^\/short(?:s|\/)/.test(path));
     }
     /* ---- Nocookie ミニプレーヤー ---- */
@@ -11551,18 +11751,19 @@ render();
     mini.hidden = true;
     mini.innerHTML =
         '<div class="nkm-frame"></div>' +
-            '<div class="nkm-bar">' +
-            '<div class="nkm-title"></div>' +
-            '<button type="button" class="nkm-btn" data-a="expand" aria-label="拡大"><svg viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z"/></svg></button>' +
-            '<button type="button" class="nkm-btn" data-a="close" aria-label="閉じる"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>' +
-            '</div>';
+        '<div class="nkm-info">' +
+            '<div class="nkm-text"><div class="nkm-title"></div><div class="nkm-sub"></div></div>' +
+            '<button type="button" class="nkm-expand" data-a="expand" aria-label="動画ページに戻る" title="展開"><svg viewBox="0 0 24 24"><path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg></button>' +
+        '</div>' +
+        '<button type="button" class="nkm-close" data-a="close" aria-label="閉じる" title="閉じる"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>';
     document.body.appendChild(mini);
-    var track = { id: "", time: 0, title: "", timer: 0, frame: null };
+    var track = { id: "", time: 0, title: "", author: "", timer: 0, frame: null };
     window.__nkTrackNocookie = function (frame, id, v) {
         track.frame = frame;
         track.id = id;
         track.time = 0;
         track.title = (v && v.title) || (document.querySelector("#vtitle") || {}).textContent || "";
+        track.author = (v && v.author) || (document.querySelector(".owner .oname") || {}).textContent || "";
         clearInterval(track.timer);
         track.timer = setInterval(function () {
             if (!frame.isConnected) {
@@ -11612,6 +11813,7 @@ render();
         mini.dataset.vid = id;
         mini.dataset.time = String(Math.floor(time || 0));
         mini.querySelector(".nkm-title").textContent = title || "";
+        mini.querySelector(".nkm-sub").textContent = track.author || (document.querySelector(".owner .oname") || {}).textContent || "";
         mini.hidden = false;
         document.body.classList.add("has-mini");
         setInterval__mini(f);
@@ -12100,6 +12302,10 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         b.classList.toggle("is-home", p === "/");
         b.classList.toggle("is-results", p === "/results" || p === "/search");
         b.classList.toggle("is-watch", /^\/watch/.test(p));
+    if (!/^\/watch/.test(p)) {
+        nkWatchDrawer(false);
+        nkMiniDrop();
+    }
         b.classList.toggle("is-shorts", /^\/short(?:s|\/|$)/.test(p));
         b.classList.remove("msearch");
         syncPlaceholder();
