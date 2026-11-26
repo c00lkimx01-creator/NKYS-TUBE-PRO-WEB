@@ -2418,7 +2418,7 @@ function nkQualityFallback(want) {
     if (sel)
         sel.value = String(best);
     toast("YouTube 埋め込みでは画質を変えられないため、ストリーム再生に切り替えます");
-    window.__nkysSetMode("stream");
+    window.__nkysSetMode("stream", { temp: true });
 }
 function embedQualityMenu(ui, vp) {
     var qbtn = ui.querySelector(".yt-qbtn"), qpop = ui.querySelector(".yt-qwrap .yt-pop"), qlabel = ui.querySelector(".yt-qlabel");
@@ -7324,7 +7324,7 @@ function mountPlayer(mode, opt) {
             fellBack_1 = true;
             opt.autoFallbackTried = true;
             toast("ストリームを再生できなかったため Nocookie 再生に切り替えました（取得URLが拒否された可能性があります）");
-            window.__nkysSetMode && window.__nkysSetMode("nocookie");
+            window.__nkysSetMode && window.__nkysSetMode("nocookie", { temp: true });
         };
         var attempt_1 = function () {
             if (!vp.isConnected || settled_1)
@@ -7335,12 +7335,23 @@ function mountPlayer(mode, opt) {
             var i = order_1[step_1++];
             if (sel_1)
                 sel_1.value = String(i);
-            setSrc(vp, opt.streams[i]).catch(attempt_1);
+            nkSwapStream(vp, opt.streams[i]).then(function (ok) {
+                if (ok) {
+                    settled_1 = true;
+                    if (sel_1)
+                        sel_1.dataset.cur = String(i);
+                }
+                else
+                    attempt_1();
+            });
         };
-        vp.addEventListener("loadeddata", function () { settled_1 = true; }, { once: true });
-        vp.addEventListener("error", function () { if (!settled_1 && vp.getAttribute("src"))
-            attempt_1(); });
         attempt_1();
+    }
+    else if (opt.v && mode === "stream") {
+        toast("ストリームを取得できなかったため Nocookie 再生で表示します");
+        /* __nkysSetMode は直後の wireModeToggle で登録されるので、一拍遅らせる */
+        setTimeout(function () { window.__nkysSetMode && window.__nkysSetMode("nocookie", { temp: true }); }, 0);
+        return;
     }
     else if (opt.v) {
         box.insertAdjacentHTML("beforeend", '<div class="empty nk-nostream" style="position:absolute;top:0;right:0;bottom:0;left:0;display:grid;place-items:center;align-content:center;gap:12px;color:#fff">ストリームを取得できませんでした<button type="button" class="pill" data-nk-embed>埋め込みで再生</button></div>');
@@ -7392,46 +7403,119 @@ function wireModeToggle(id, v) {
         if (qsel)
             qsel.style.display = (m === "nocookie" || m === "edu" || m === "nocookie-ui" || m === "nocookie-native") ? "none" : "";
     };
-    window.__nkysSetMode = function (mode) {
+    /* 再生方法の切り替え。opt.temp=true は「この再生だけ」の切り替え（取得失敗時など）で、保存済みの設定は変えない */
+    window.__nkysSetMode = function (mode, opt) {
+        var persist = !(opt && opt.temp);
+        var remember = function (m) {
+            if (persist) {
+                S.settings.playerMode = m;
+                saveSettings();
+            }
+        };
         if (mode === "edu") {
-            S.settings.playerMode = "edu";
-            saveSettings();
+            remember("edu");
             mountPlayer("edu", { id: id, v: v, start: curPlayTime() });
         }
         else if (mode === "nocookie-native") {
-            S.settings.playerMode = "nocookie-native";
-            saveSettings();
+            remember("nocookie-native");
             mountPlayer("nocookie-native", { id: id, v: v, start: curPlayTime() });
         }
         else if (mode === "nocookie") {
-            S.settings.playerMode = "nocookie";
-            saveSettings();
+            remember("nocookie");
             mountPlayer("nocookie", { id: id, v: v, start: curPlayTime() });
         }
         else {
-            S.settings.playerMode = "stream";
-            saveSettings();
+            remember("stream");
             mountPlayer("stream", { id: id, v: v, streams: window.__nkysStreams, autoFallbackTried: false, start: curPlayTime() });
         }
         sync();
     };
+    /* 画質の切り替え: 新しい URL が読み込めたら切り替え（再生位置と再生状態は維持）。読めなければ直前の画質に戻して知らせる */
     qsel && (qsel.onchange = function () {
         var vp = $("#vp");
         if (!vp)
             return;
-        var t = vp.currentTime, p = !vp.paused;
-        vp.addEventListener("loadedmetadata", function () { try {
-            vp.currentTime = t;
-        }
-        catch (_) { } }, { once: true });
-        setSrc(vp, window.__nkysStreams[+qsel.value])
-            .then(function () { if (p)
-            vp.play().catch(function () { }); })
-            .catch(function () { return toast("この画質は再生できませんでした"); });
+        var streams = window.__nkysStreams || [];
+        var idx = +qsel.value;
+        var next = streams[idx];
+        var prev = +(qsel.dataset.cur || 0);
+        if (!next)
+            return;
+        var t = vp.currentTime || 0, wasPlaying = !vp.paused;
+        var resumeAt = function (el) {
+            try {
+                el.currentTime = t;
+            }
+            catch (_) { }
+            if (wasPlaying)
+                el.play().catch(function () { });
+            else
+                el.pause();
+        };
+        nkSwapStream(vp, next).then(function (ok) {
+            if (ok) {
+                qsel.dataset.cur = String(idx);
+                resumeAt(vp);
+                return;
+            }
+            toast("「" + next.label + "」は取得できませんでした。直前の画質を続けます");
+            qsel.value = String(prev);
+            var lab = document.querySelector("#playerWrap .yt-qlabel");
+            if (lab && streams[prev])
+                lab.textContent = String(streams[prev].label).split(" ")[0];
+            if (streams[prev])
+                nkSwapStream(vp, streams[prev]).then(function (ok2) {
+                    if (ok2)
+                        resumeAt(vp);
+                    else
+                        toast("この動画の再生を続けられませんでした");
+                });
+        });
     });
     sync();
 }
-/* 映像と音声が別々の URL（高画質）のときの同期。音声は隠した <audio> で流し、映像側の再生・停止・シーク・音量・速度に合わせる */
+/* 新しいストリームを読み込み、成功（映像と音声の両方）なら true、失敗・時間切れなら false を返す */
+function nkSwapStream(vp, s) {
+    return new Promise(function (resolve) {
+        var done = false, timer = null, extra = null;
+        var finish = function (ok) {
+            if (done)
+                return;
+            done = true;
+            clearTimeout(timer);
+            vp.removeEventListener("loadeddata", onOk);
+            vp.removeEventListener("error", onBad);
+            if (extra)
+                extra();
+            resolve(ok);
+        };
+        var onBad = function () { finish(false); };
+        var onOk = function () {
+            var au = s.audioUrl && vp.__nkDual && vp.__nkDual.aud;
+            if (!au || au.readyState >= 2)
+                return finish(true);
+            var a1 = function () { finish(true); };
+            var a2 = function () { finish(false); };
+            au.addEventListener("loadeddata", a1);
+            au.addEventListener("error", a2);
+            extra = function () {
+                au.removeEventListener("loadeddata", a1);
+                au.removeEventListener("error", a2);
+            };
+        };
+        vp.addEventListener("loadeddata", onOk);
+        vp.addEventListener("error", onBad);
+        timer = setTimeout(function () { finish(false); }, 10000);
+        setSrc(vp, s).catch(function () { finish(false); });
+    });
+}
+/* 映像と音声が別々の URL（高画質）のとき、2つの要素を1つの時計で同時に再生する。
+   - 再生の意思は映像側の play() / pause() で決まる（読み込み待ちで一時停止しても意思は変えない）
+   - どちらかが読み込み中なら、もう一方も止めて、両方がそろってから再生を再開する（ずれを作らない）
+   - 再生・一時停止・シーク・速度・音量は両方へ同時に反映する
+   - 再生中は時刻差を100msごとに確かめ、小さなずれは速度を微調整し、大きなずれは即座に合わせ直す */
+var NK_NATIVE_PLAY = HTMLMediaElement.prototype.play;
+var NK_NATIVE_PAUSE = HTMLMediaElement.prototype.pause;
 function nkDualSet(vp, audioUrl) {
     var st = vp.__nkDual;
     if (!audioUrl) {
@@ -7441,66 +7525,181 @@ function nkDualSet(vp, audioUrl) {
         }
         return;
     }
-    if (!st) {
-        var aud = document.createElement("audio");
-        aud.preload = "auto";
-        aud.hidden = true;
-        (vp.parentNode || document.body).appendChild(aud);
-        var fix = function (force) {
-            if (!aud.getAttribute("src"))
-                return;
-            if (force || Math.abs((vp.currentTime || 0) - aud.currentTime) > 0.25) {
-                try {
-                    aud.currentTime = vp.currentTime || 0;
-                }
-                catch (_) { }
+    if (!st)
+        st = vp.__nkDual = nkDualCreate(vp);
+    st.load(audioUrl);
+}
+function nkDualCreate(vp) {
+    var aud = document.createElement("audio");
+    aud.preload = "auto";
+    aud.hidden = true;
+    (vp.parentNode || document.body).appendChild(aud);
+    var want = false;                       /* 再生したいか（利用者の操作で決まる） */
+    var base = vp.playbackRate || 1;        /* 基準の再生速度 */
+    var timer = 0, rateT = 0, vpStallT = 0, audStallT = 0, pendingAlign = false;
+    var startTs = 0, startHoldDone = false, quietPause = false;
+    var ready = function () { return vp.readyState >= 3 && aud.readyState >= 3; };
+    var hasAud = function () { return !!aud.getAttribute("src"); };
+    var align = function () {
+        var t = vp.currentTime || 0;
+        if (Math.abs((aud.currentTime || 0) - t) > 0.01) {
+            try {
+                aud.currentTime = t;
             }
-        };
-        /* 映像が再生中なのに音声が止まっていれば（途中の中断などで）再開する */
-        var resume = function () {
-            if (!vp.paused && aud.getAttribute("src") && aud.paused)
-                aud.play().catch(function () { });
-        };
-        var handlers = {
-            play: function () { if (aud.getAttribute("src")) aud.play().catch(function () { }); },
-            playing: function () { fix(true); resume(); },
-            canplay: resume,
-            pause: function () { aud.pause(); },
-            waiting: function () { aud.pause(); },
-            emptied: function () { aud.pause(); },
-            ended: function () { aud.pause(); },
-            seeking: function () { fix(true); },
-            seeked: function () { fix(true); },
-            timeupdate: function () { fix(false); resume(); },
-            ratechange: function () { aud.playbackRate = vp.playbackRate; },
-            volumechange: function () { aud.volume = vp.volume; aud.muted = vp.muted; },
-        };
-        Object.keys(handlers).forEach(function (ev) { vp.addEventListener(ev, handlers[ev]); });
-        st = vp.__nkDual = {
-            aud: aud,
-            detach: function () {
-                Object.keys(handlers).forEach(function (ev) { vp.removeEventListener(ev, handlers[ev]); });
-                aud.pause();
-                aud.removeAttribute("src");
-                aud.load();
-                aud.remove();
-            },
-        };
-    }
-    var a = st.aud;
-    a.volume = vp.volume;
-    a.muted = vp.muted;
-    /* load() は再生速度を defaultPlaybackRate に戻すため、読み込みの前に既定値を、後に現在値を入れる */
-    a.defaultPlaybackRate = vp.playbackRate;
-    a.src = audioUrl;
-    a.load();
-    a.playbackRate = vp.playbackRate;
-    try {
-        a.currentTime = vp.currentTime || 0;
-    }
-    catch (_) { }
-    if (!vp.paused)
-        a.play().catch(function () { });
+            catch (_) { }
+        }
+    };
+    var setRate = function (r) {
+        if (Math.abs(aud.playbackRate - r) > 0.002)
+            aud.playbackRate = r;
+    };
+    var stopTimer = function () {
+        clearInterval(timer);
+        timer = 0;
+        setRate(base);
+    };
+    var drift = function () {
+        if (vp.paused || aud.paused) {
+            stopTimer();
+            return;
+        }
+        var d = (vp.currentTime || 0) - (aud.currentTime || 0);
+        /* 小さなずれは速度を微調整して追従する（音声の位置を飛ばさない＝音が途切れない）。
+           大きなずれ（回線の停止後など）だけ位置を合わせ直す */
+        /* 開始直後に映像だけが先行していたら、その分（数十ms）だけ映像を待たせる（音声は止めない）。1回だけ */
+        if (!startHoldDone && Date.now() - startTs < 1500 && d > 0.02 && d < 0.25 && want) {
+            startHoldDone = true;
+            quietPause = true;
+            NK_NATIVE_PAUSE.call(vp);
+            setTimeout(function () {
+                quietPause = false;
+                if (want && vp.paused)
+                    NK_NATIVE_PLAY.call(vp).catch(function () { });
+            }, Math.round(d * 1000));
+            return;
+        }
+        if (Math.abs(d) > 0.25) {
+            align();
+            setRate(base);
+            return;
+        }
+        setRate(Math.abs(d) < 0.004 ? base : base * (1 + Math.max(-0.06, Math.min(0.06, d * 2))));
+    };
+    var startTimer = function () {
+        if (!timer)
+            timer = setInterval(drift, 50);
+    };
+    /* 再生したいのに止まっていれば、両方そろった時点で同じ位置から同時に再開する */
+    var resumeIfReady = function () {
+        if (!want || !hasAud() || !ready())
+            return;
+        /* 止まっていた側を動かすときだけ位置を合わせる（再生中に何度も合わせ直すと音が途切れる） */
+        if (vp.paused || aud.paused) {
+            /* 音声が実際に鳴り始めた瞬間（playing）に位置を合わせる。始める前に合わせると開始時のずれが残る */
+            pendingAlign = true;
+            startTs = Date.now();
+            startHoldDone = false;
+        }
+        if (vp.paused)
+            NK_NATIVE_PLAY.call(vp).catch(function () { });
+        if (aud.paused)
+            aud.play().catch(function () { });
+        startTimer();
+    };
+    /* 音声の準備を待つ間は映像も止める（再生の意思は変えない） */
+    var holdVideo = function () {
+        if (!vp.paused)
+            NK_NATIVE_PAUSE.call(vp);
+    };
+    var H = {
+        play: function () { if (ready()) resumeIfReady(); else holdVideo(); },
+        playing: function () { clearTimeout(vpStallT); resumeIfReady(); },
+        pause: function () {
+            if (quietPause)
+                return;
+            clearTimeout(vpStallT);
+            aud.pause();
+            stopTimer();
+        },
+        /* 映像の読み込みが一瞬途切れただけなら音声は止めない（短い途切れで音が跳ねないように） */
+        waiting: function () {
+            clearTimeout(vpStallT);
+            vpStallT = setTimeout(function () {
+                if (vp.readyState < 3 && !aud.paused)
+                    aud.pause();
+            }, 400);
+        },
+        seeking: function () { align(); },
+        seeked: function () { align(); resumeIfReady(); },
+        canplay: function () { resumeIfReady(); },
+        loadedmetadata: function () { align(); setRate(base); },
+        ratechange: function () {
+            base = vp.playbackRate || 1;
+            setRate(base);
+            align();
+            /* 音声は速度変更が反映されるまで少し遅れるので、反映後にもう一度合わせる */
+            clearTimeout(rateT);
+            rateT = setTimeout(align, 250);
+        },
+        volumechange: function () { aud.volume = vp.volume; aud.muted = vp.muted; },
+        ended: function () { want = false; aud.pause(); stopTimer(); },
+        emptied: function () { aud.pause(); stopTimer(); },
+    };
+    var A = {
+        /* 音声の読み込みが 400ms 以上戻らない時だけ映像を止める（一瞬の途切れで止めると、止めて・動かすを繰り返して音が途切れるため） */
+        waiting: function () {
+            clearTimeout(audStallT);
+            audStallT = setTimeout(function () {
+                if (aud.readyState < 3 && !vp.paused)
+                    holdVideo();
+            }, 400);
+        },
+        playing: function () {
+            clearTimeout(audStallT);
+            if (pendingAlign) {
+                pendingAlign = false;
+                align();
+            }
+            resumeIfReady();
+        },
+        canplay: function () { clearTimeout(audStallT); resumeIfReady(); },
+        loadedmetadata: function () { aud.playbackRate = base; align(); },
+    };
+    var onV = Object.keys(H), onA = Object.keys(A);
+    onV.forEach(function (ev) { vp.addEventListener(ev, H[ev]); });
+    onA.forEach(function (ev) { aud.addEventListener(ev, A[ev]); });
+    /* 利用者の操作（ボタン・キー操作・シーク）はここを通る。再生の意思をここで記録する */
+    /* 読み込み待ちで一時停止したときの「再生の中断」は想定どおりなので、呼び出し側へ例外として漏らさない */
+    vp.play = function () {
+        want = true;
+        return NK_NATIVE_PLAY.call(vp).catch(function (e) {
+            if (!e || e.name !== "AbortError")
+                throw e;
+        });
+    };
+    vp.pause = function () { want = false; NK_NATIVE_PAUSE.call(vp); };
+    return {
+        aud: aud,
+        load: function (url) {
+            aud.loop = !!vp.loop;
+            aud.volume = vp.volume;
+            aud.muted = vp.muted;
+            aud.src = url;
+            aud.load();
+            aud.playbackRate = base;
+        },
+        detach: function () {
+            onV.forEach(function (ev) { vp.removeEventListener(ev, H[ev]); });
+            onA.forEach(function (ev) { aud.removeEventListener(ev, A[ev]); });
+            stopTimer();
+            delete vp.play;
+            delete vp.pause;
+            aud.pause();
+            aud.removeAttribute("src");
+            aud.load();
+            aud.remove();
+        },
+    };
 }
 function setSrc(vp, s) {
     if (!s)
@@ -11623,7 +11822,8 @@ document.addEventListener("scroll", function () {
         $("#cpMute").checked = !!S.settings.mute;
         var pw = document.querySelector("#playerWrap");
         var mode = (pw && pw.dataset.mode) || "";
-        var cur = (mode === "nocookie" || mode === "edu" || mode === "nocookie-ui") ? mode : (mode === "nocookie-native" ? "" : "stream");
+        var saved = S.settings.playerMode;
+        var cur = (saved === "nocookie" || saved === "edu" || saved === "nocookie-ui") ? saved : (saved === "nocookie-native" ? "" : "stream");
         panel.querySelectorAll('input[name="cpMode"]').forEach(function (r) { r.checked = r.value === cur; });
         panel.querySelectorAll(".cp-radio").forEach(function (l) { return l.classList.toggle("on", l.querySelector("input").checked); });
         $("#cpStreamApi").value = S.settings.streamApi || "nkdlp";
