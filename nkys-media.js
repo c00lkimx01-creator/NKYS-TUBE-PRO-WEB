@@ -319,7 +319,7 @@
     var s = Number(v.lengthSeconds || 0);
     c.innerHTML = '<div class="th"><img loading="lazy" referrerpolicy="no-referrer" src="' + img(v) + '" alt="">' + (s ? '<span class="du">' + fmtDur(s) + '</span>' : "") + (rank ? '<span class="rk">' + rank + '</span>' : "") + '</div>' +
       '<div class="bd"><div class="ch">' + H(v.author || "") + '</div><div class="t">' + H(v.title || "") + '</div></div>';
-    c.onclick = function () { go("/watch?v=" + idOf(v)); };
+    c.onclick = function () { go("/tv/" + idOf(v)); };
     return c;
   }
   function tvList(l) { var seen = {}; return (l || []).filter(function (v) { var id = idOf(v); if (!id || seen[id] || v.type === "channel" || v.type === "playlist") return false; seen[id] = 1; return !/#shorts?/i.test(v.title || ""); }); }
@@ -330,9 +330,9 @@
     w.innerHTML = '<div class="tvr-head"><div class="in"><div class="tvr-logo">NKYSTube<small>TV</small></div><div class="tvr-tabs">' +
       tabs.map(function (t) { return '<button type="button" class="tvr-tab' + (t[0] === tab ? " on" : "") + '" data-t="' + t[0] + '">' + t[1] + "</button>"; }).join("") +
       '</div><form class="tvr-srch">' + ICON.search.replace("<svg", '<svg style="width:18px;fill:#888"') + '<input placeholder="番組を探す"></form></div></div><div class="tvr-body"></div>';
-    w.querySelector(".tvr-logo").onclick = function () { go("/tubetv"); };
-    w.querySelectorAll(".tvr-tab").forEach(function (b) { b.onclick = function () { go(b.dataset.t === "home" ? "/tubetv" : "/tubetv?tab=" + b.dataset.t); }; });
-    w.querySelector("form").onsubmit = function (e) { e.preventDefault(); var v = this.querySelector("input").value.trim(); if (v) go("/tubetv?tab=genre&q=" + encodeURIComponent(v)); };
+    w.querySelector(".tvr-logo").onclick = function () { go("/tv"); };
+    w.querySelectorAll(".tvr-tab").forEach(function (b) { b.onclick = function () { go(b.dataset.t === "home" ? "/tv" : "/tv?tab=" + b.dataset.t); }; });
+    w.querySelector("form").onsubmit = function (e) { e.preventDefault(); var v = this.querySelector("input").value.trim(); if (v) go("/tv?tab=genre&q=" + encodeURIComponent(v)); };
     view().replaceChildren(w);
     return w.querySelector(".tvr-body");
   }
@@ -352,7 +352,7 @@
       function show(n) {
         i = n; var v = s[i];
         hero.innerHTML = '<img referrerpolicy="no-referrer" src="https://i.ytimg.com/vi/' + idOf(v) + '/maxresdefault.jpg" onerror="this.src=\'' + img(v) + '\'" alt=""><div class="cap"><span>' + H(v.author || "おすすめ") + '</span><b>' + H(v.title || "") + '</b></div>';
-        hero.onclick = function () { go("/watch?v=" + idOf(v)); };
+        hero.onclick = function () { go("/tv/" + idOf(v)); };
         dots.innerHTML = s.map(function (_, k) { return '<button type="button" aria-label="' + (k + 1) + '枚目" class="' + (k === i ? "on" : "") + '"></button>'; }).join("");
         dots.querySelectorAll("button").forEach(function (b, k) { b.onclick = function () { show(k); }; });
       }
@@ -372,7 +372,7 @@
     var g = GENRES.filter(function (x) { return x.k === k; })[0] || (q ? null : GENRES[0]);
     var gl = el("div", "tvr-genres");
     gl.innerHTML = GENRES.map(function (x) { return '<button type="button" data-k="' + x.k + '" class="' + (g && g.k === x.k ? "on" : "") + '">' + x.t + "</button>"; }).join("");
-    gl.querySelectorAll("button").forEach(function (b) { b.onclick = function () { go("/tubetv?tab=genre&g=" + b.dataset.k); }; });
+    gl.querySelectorAll("button").forEach(function (b) { b.onclick = function () { go("/tv?tab=genre&g=" + b.dataset.k); }; });
     body.appendChild(gl);
     var h = el("h2", "", g ? g.t : "「" + H(q) + "」の番組"); h.textContent = g ? g.t : "「" + q + "」の番組"; body.appendChild(h);
     var grid = el("div", "tvr-grid"); body.appendChild(grid); tvGhosts(grid, 8);
@@ -424,7 +424,7 @@
       var d = new Date(base.getTime() + i * 86400000);
       days.innerHTML += '<button type="button" data-d="' + i + '" class="' + (i === dayOff ? "on" : "") + '">' + (i === 0 ? "今日" : i === -1 ? "昨日" : i === 1 ? "明日" : (d.getMonth() + 1) + "/" + d.getDate()) + "<small>" + (d.getMonth() + 1) + "/" + d.getDate() + "（" + WD[d.getDay()] + "）</small></button>";
     }
-    days.querySelectorAll("button").forEach(function (b) { b.onclick = function () { go("/tubetv?tab=epg&d=" + b.dataset.d); }; });
+    days.querySelectorAll("button").forEach(function (b) { b.onclick = function () { go("/tv?tab=epg&d=" + b.dataset.d); }; });
     body.appendChild(days);
     var note = el("p", "epg-note", "※ 表示している番組表はサンプルです。番組をクリックすると関連する動画を探せます。");
     body.appendChild(note);
@@ -449,7 +449,7 @@
         b.style.top = ((p.s - 300) * PX) + "px"; b.style.height = ((p.e - p.s) * PX) + "px";
         b.innerHTML = "<b>" + hm(p.s % 1440 === p.s ? p.s : p.s) .replace(/^(\d+)/, function (x) { return String(Number(x)); }) + "</b>" + H(p.t);
         b.title = c.n + " " + hm(p.s) + "〜" + hm(p.e) + " " + p.t;
-        b.onclick = function () { go("/tubetv?tab=genre&q=" + encodeURIComponent(p.t.replace(/[「」]/g, " "))); };
+        b.onclick = function () { go("/tv?tab=genre&q=" + encodeURIComponent(p.t.replace(/[「」]/g, " "))); };
         col.appendChild(b);
       });
       grid.appendChild(col);
@@ -469,7 +469,7 @@
       if (q.get("q")) return musicSearch(q.get("q"));
       return musicHome(q.get("mood"));
     }
-    if (key === "tubetv") {
+    if (key === "tv") {
       var tab = q.get("tab") || "home";
       if (tab === "epg") return tvEpg(Math.max(-1, Math.min(6, parseInt(q.get("d") || "0", 10) || 0)));
       if (tab === "ranking") return tvRanking();
@@ -482,7 +482,7 @@
   renderPage = function () {
     var p = currentPath();
     document.body.classList.toggle("nk-music", p === "/tubemusic");
-    document.body.classList.toggle("nk-tv", p === "/tubetv");
+    document.body.classList.toggle("nk-tv", p === "/tv");
     if (P.playing && (p === "/watch" || /^\/short/.test(p))) { cmd("pauseVideo"); P.playing = false; paint(); }
     return origRender.apply(this, arguments);
   };
@@ -490,5 +490,345 @@
   st.textContent = "body.nk-mp-on #view{padding-bottom:80px}";
   document.head.appendChild(st);
   /* 初回表示がサービスページなら描き直す */
-  if (/^\/(tubemusic|tubetv)$/.test(currentPath())) render();
+  
+
+  /* ================= TV 再生 UI (/tv/{videoId}) — 独自プレーヤー ================= */
+  (function () {
+    var st2 = document.createElement("style");
+    st2.textContent = [
+      "body.nk-tvplay{overflow:hidden}",
+      ".tvp{position:fixed;inset:0;z-index:10000;background:#000;color:#fff;font-family:'Noto Sans JP',Roboto,sans-serif;user-select:none;cursor:default}",
+      ".tvp.idle{cursor:none}",
+      ".tvp video,.tvp iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000;object-fit:contain}",
+      ".tvp iframe{pointer-events:none}",
+      ".tvp-hit{position:absolute;inset:0}",
+      ".tvp-ui{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;transition:opacity .3s;pointer-events:none}",
+      ".tvp.idle .tvp-ui{opacity:0}",
+      ".tvp-top{padding:28px 40px 80px;background:linear-gradient(#000c,transparent);display:flex;align-items:flex-start;gap:20px;pointer-events:auto}",
+      ".tvp-top .ti{min-width:0;flex:1}",
+      ".tvp-top .ch{color:#1aa0dc;font-weight:700;font-size:15px}",
+      ".tvp-top h1{margin:4px 0 0;font-size:26px;font-weight:900;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}",
+      ".tvp-bot{padding:80px 40px 30px;background:linear-gradient(transparent,#000d);pointer-events:auto}",
+      ".tvp-seek{position:relative;height:22px;display:flex;align-items:center;cursor:pointer}",
+      ".tvp-seek .tr{position:relative;width:100%;height:6px;border-radius:3px;background:#ffffff40;overflow:hidden;transition:height .15s}",
+      ".tvp-seek:hover .tr,.tvp-seek:focus-visible .tr{height:10px}",
+      ".tvp-seek .bf{position:absolute;left:0;top:0;bottom:0;background:#ffffff55}",
+      ".tvp-seek .pg{position:absolute;left:0;top:0;bottom:0;background:#1aa0dc}",
+      ".tvp-seek .kn{position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px #1aa0dc80}",
+      ".tvp-row{display:flex;align-items:center;gap:10px;margin-top:12px}",
+      ".tvp-row .tm{font-variant-numeric:tabular-nums;font-size:16px;margin-left:8px}",
+      ".tvp-row .sp{flex:1}",
+      ".tvp button,.tvp select{font:inherit;color:#fff;background:#ffffff1a;border:2px solid transparent;border-radius:999px;height:52px;min-width:52px;padding:0 14px;display:inline-grid;place-items:center;cursor:pointer;font-size:15px;font-weight:700}",
+      ".tvp button:hover,.tvp select:hover{background:#ffffff33}",
+      ".tvp button:focus-visible,.tvp select:focus-visible,.tvp-seek:focus-visible,.tvp-card:focus-visible{outline:none;border-color:#1aa0dc;box-shadow:0 0 0 3px #1aa0dc66}",
+      ".tvp button svg{width:28px;height:28px;fill:currentColor}",
+      ".tvp .pp{height:64px;min-width:64px;background:#1aa0dc}",
+      ".tvp .pp:hover{background:#38b4ec}",
+      ".tvp .pp svg{width:36px;height:36px}",
+      ".tvp select{appearance:none;padding:0 18px}",
+      ".tvp select option{color:#000}",
+      ".tvp-vol{width:110px;accent-color:#1aa0dc}",
+      ".tvp-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;display:grid;place-items:center;gap:14px;text-align:center}",
+      ".tvp-spin{width:56px;height:56px;border-radius:50%;border:5px solid #ffffff33;border-top-color:#1aa0dc;animation:tvpspin .9s linear infinite}",
+      "@keyframes tvpspin{to{transform:rotate(360deg)}}",
+      ".tvp-flash{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#000a;border-radius:16px;padding:16px 24px;font-size:22px;font-weight:900;opacity:0;transition:opacity .25s;pointer-events:none}",
+      ".tvp-flash.on{opacity:1}",
+      ".tvp-next{margin-top:18px}",
+      ".tvp-next h3{margin:0 0 10px;font-size:16px;font-weight:900;color:#ddd}",
+      ".tvp-next .ls{display:grid;grid-auto-flow:column;grid-auto-columns:240px;gap:14px;overflow-x:auto;padding:4px 4px 8px;scrollbar-width:thin}",
+      ".tvp-card{background:#ffffff12;border:2px solid transparent;border-radius:10px;overflow:hidden;cursor:pointer;text-align:left;padding:0;height:auto!important;display:block!important;min-width:0}",
+      ".tvp-card img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#222}",
+      ".tvp-card div{padding:8px 10px;font-size:13px;font-weight:700;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}",
+      ".tvp.paused .tvp-next,.tvp.ended .tvp-next{display:block}",
+      ".tvp-next{display:none}",
+      ".tvp-err{color:#ffb4b4;font-size:14px}",
+      "@media (max-width:720px){.tvp-top{padding:16px 16px 60px}.tvp-top h1{font-size:18px}.tvp-bot{padding:60px 16px 16px}.tvp-vol,.tvp .hide-sm{display:none}.tvp button,.tvp select{height:44px;min-width:44px;padding:0 10px}.tvp .pp{height:52px;min-width:52px}}"
+    ].join("\n");
+    document.head.appendChild(st2);
+
+    var I = {
+      play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
+      pause: '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>',
+      back: '<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>',
+      rw: '<svg viewBox="0 0 24 24"><path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/><text x="12" y="16" font-size="6.5" text-anchor="middle" font-weight="700">10</text></svg>',
+      ff: '<svg viewBox="0 0 24 24"><path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/><text x="12" y="16" font-size="6.5" text-anchor="middle" font-weight="700">10</text></svg>',
+      vol: '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 8v8a4.5 4.5 0 002.5-4zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>',
+      mute: '<svg viewBox="0 0 24 24"><path d="M16.5 12A4.5 4.5 0 0014 8v2.18l2.45 2.45c.03-.2.05-.41.05-.63zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0021 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 003.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>',
+      fs: '<svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>',
+      fsx: '<svg viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>'
+    };
+
+    var T = null; /* 現在のプレーヤー状態 */
+    function destroy() {
+      if (!T) return;
+      clearTimeout(T.idleT); clearInterval(T.poll);
+      try { if (T.video) { T.video.pause(); T.video.removeAttribute("src"); T.video.load(); } } catch (e) {}
+      try { if (T.audio) { T.audio.pause(); T.audio.removeAttribute("src"); } } catch (e) {}
+      document.removeEventListener("keydown", T.onKey, true);
+      document.removeEventListener("fullscreenchange", T.onFs);
+      removeEventListener("message", T.onMsg);
+      if (T.root && T.root.parentNode) T.root.parentNode.removeChild(T.root);
+      document.body.classList.remove("nk-tvplay");
+      T = null;
+    }
+
+    function tvPlay(id) {
+      destroy();
+      document.title = "TV 再生 - NKYS Tube Pro";
+      var known = (typeof previewVideos !== "undefined" && previewVideos.get && previewVideos.get(id)) || null;
+      var r = document.createElement("div");
+      r.className = "tvp paused";
+      r.setAttribute("role", "region");
+      r.setAttribute("aria-label", "TV プレーヤー");
+      r.innerHTML =
+        '<div class="tvp-media"></div><div class="tvp-hit"></div>' +
+        '<div class="tvp-center"><div class="tvp-spin"></div><div class="tvp-msg"></div></div>' +
+        '<div class="tvp-flash"></div>' +
+        '<div class="tvp-ui">' +
+          '<div class="tvp-top"><button type="button" class="bk" aria-label="戻る">' + I.back + '</button>' +
+            '<div class="ti"><div class="ch"></div><h1></h1></div>' +
+            '<button type="button" class="ow hide-sm" aria-label="通常の再生ページで開く">通常画面</button></div>' +
+          '<div class="tvp-bot">' +
+            '<div class="tvp-seek" tabindex="0" role="slider" aria-label="再生位置" aria-valuemin="0"><div class="tr"><div class="bf"></div><div class="pg"></div></div><div class="kn"></div></div>' +
+            '<div class="tvp-row">' +
+              '<button type="button" class="rw" aria-label="10秒戻る">' + I.rw + '</button>' +
+              '<button type="button" class="pp" aria-label="再生/一時停止">' + I.play + '</button>' +
+              '<button type="button" class="ff" aria-label="10秒進む">' + I.ff + '</button>' +
+              '<span class="tm">0:00 / 0:00</span><span class="sp"></span>' +
+              '<button type="button" class="mu" aria-label="ミュート">' + I.vol + '</button>' +
+              '<input class="tvp-vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="音量">' +
+              '<select class="rt hide-sm" aria-label="再生速度"><option value="0.75">0.75x</option><option value="1" selected>1.0x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2.0x</option></select>' +
+              '<select class="ql" aria-label="画質"></select>' +
+              '<button type="button" class="fs" aria-label="全画面">' + I.fs + '</button>' +
+            '</div>' +
+            '<div class="tvp-next"><h3>次に見る</h3><div class="ls"></div></div>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(r);
+      document.body.classList.add("nk-tvplay");
+      var q = function (s) { return r.querySelector(s); };
+      T = { root: r, id: id, video: null, audio: null, frame: null, t: 0, d: 0, playing: false, streams: [], mode: "" };
+      var me = T;
+      var setInfo = function (v) {
+        if (!v) return;
+        q(".ch").textContent = v.author || v.uploader || "";
+        q("h1").textContent = v.title || "";
+        if (v.title) document.title = v.title + " - NKYS TubeTV";
+        if (v.lengthSeconds && !T.d) T.d = Number(v.lengthSeconds) || 0;
+      };
+      setInfo(known);
+      var msg = function (s, err) { var m = q(".tvp-msg"); m.textContent = s || ""; m.className = "tvp-msg" + (err ? " tvp-err" : ""); };
+      var spin = function (on) { q(".tvp-spin").style.display = on ? "" : "none"; };
+      var flashT = 0;
+      var flash = function (s) { var f = q(".tvp-flash"); f.textContent = s; f.classList.add("on"); clearTimeout(flashT); flashT = setTimeout(function () { f.classList.remove("on"); }, 700); };
+
+      /* ---- 共通コントロール (video / iframe 両対応) ---- */
+      var api = {
+        play: function () {
+          if (T.video) { var p = T.video.play(); if (p && p.catch) p.catch(function () {}); if (T.audio) { T.audio.currentTime = T.video.currentTime; T.audio.play().catch(function () {}); } }
+          else ycmd("playVideo");
+          T.playing = true; paint();
+        },
+        pause: function () {
+          if (T.video) { T.video.pause(); if (T.audio) T.audio.pause(); } else ycmd("pauseVideo");
+          T.playing = false; paint();
+        },
+        seek: function (s) {
+          s = Math.max(0, Math.min(T.d || s, s));
+          if (T.video) { T.video.currentTime = s; if (T.audio) T.audio.currentTime = s; } else ycmd("seekTo", [s, true]);
+          T.t = s; paint();
+        },
+        vol: function (v, muted) {
+          var m = T.video ? (T.audio || T.video) : null;
+          if (m) { m.volume = v; m.muted = muted; } else { ycmd("setVolume", [Math.round(v * 100)]); ycmd(muted ? "mute" : "unMute"); }
+          T.v = v; T.muted = muted;
+          q(".mu").innerHTML = muted || v === 0 ? I.mute : I.vol; q(".tvp-vol").value = String(muted ? 0 : v);
+        },
+        rate: function (x) { if (T.video) { T.video.playbackRate = x; if (T.audio) T.audio.playbackRate = x; } else ycmd("setPlaybackRate", [x]); }
+      };
+      T.v = 1; T.muted = false;
+      function ycmd(func, args) { if (T && T.frame && T.frame.contentWindow) T.frame.contentWindow.postMessage(JSON.stringify({ event: "command", func: func, args: args || [] }), "*"); }
+      function paint() {
+        if (!T) return;
+        r.classList.toggle("paused", !T.playing && !T.ended);
+        r.classList.toggle("ended", !!T.ended);
+        q(".pp").innerHTML = T.playing ? I.pause : I.play;
+        q(".tm").textContent = fmtDur(T.t) + " / " + fmtDur(T.d);
+        var pct = T.d ? Math.min(100, T.t / T.d * 100) : 0;
+        q(".pg").style.width = pct + "%"; q(".kn").style.left = pct + "%";
+        var sk = q(".tvp-seek"); sk.setAttribute("aria-valuemax", String(Math.round(T.d))); sk.setAttribute("aria-valuenow", String(Math.round(T.t)));
+        if (T.video && T.video.buffered && T.video.buffered.length && T.d) q(".bf").style.width = Math.min(100, T.video.buffered.end(T.video.buffered.length - 1) / T.d * 100) + "%";
+      }
+      var toggle = function () { if (T.playing) { api.pause(); flash("一時停止"); } else { T.ended = false; api.play(); flash("再生"); } };
+
+      /* ---- 自動で隠れる UI ---- */
+      var wake = function () {
+        r.classList.remove("idle"); clearTimeout(T.idleT);
+        T.idleT = setTimeout(function () { if (T && T.playing) r.classList.add("idle"); }, 3000);
+      };
+      r.addEventListener("mousemove", wake); r.addEventListener("touchstart", wake, { passive: true });
+      q(".tvp-hit").onclick = function () { if (r.classList.contains("idle")) return wake(); toggle(); wake(); };
+      q(".tvp-hit").ondblclick = function () { fsToggle(); };
+      q(".pp").onclick = toggle;
+      q(".rw").onclick = function () { api.seek(T.t - 10); flash("-10秒"); };
+      q(".ff").onclick = function () { api.seek(T.t + 10); flash("+10秒"); };
+      q(".mu").onclick = function () { api.vol(T.v || 1, !T.muted); };
+      q(".tvp-vol").oninput = function () { var v = parseFloat(this.value); api.vol(v, v === 0); };
+      q(".rt").onchange = function () { api.rate(parseFloat(this.value)); };
+      var back = function () { if (history.length > 1) history.back(); else go("/tv"); };
+      q(".bk").onclick = back;
+      q(".ow").onclick = function () { go("/watch?v=" + id); };
+      var seekAt = function (e) { var b = q(".tvp-seek").getBoundingClientRect(); if (T.d) api.seek(T.d * Math.max(0, Math.min(1, (e.clientX - b.left) / b.width))); };
+      var dragging = false;
+      q(".tvp-seek").addEventListener("pointerdown", function (e) { dragging = true; this.setPointerCapture(e.pointerId); seekAt(e); });
+      q(".tvp-seek").addEventListener("pointermove", function (e) { if (dragging) seekAt(e); });
+      q(".tvp-seek").addEventListener("pointerup", function () { dragging = false; });
+      function fsToggle() {
+        if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
+        else if (r.requestFullscreen) r.requestFullscreen().catch(function () {});
+      }
+      q(".fs").onclick = fsToggle;
+      T.onFs = function () { if (T) q(".fs").innerHTML = document.fullscreenElement ? I.fsx : I.fs; };
+      document.addEventListener("fullscreenchange", T.onFs);
+
+      /* ---- TV リモコン / キーボード ---- */
+      T.onKey = function (e) {
+        if (!T || T !== me) return;
+        var tag = (e.target && e.target.tagName) || "";
+        var onCtl = /BUTTON|SELECT|INPUT/.test(tag) && r.contains(e.target);
+        var k = e.key;
+        wake();
+        if (k === "Escape" || k === "Backspace" || k === "BrowserBack" || k === "GoBack") {
+          if (document.fullscreenElement && k === "Escape") return;
+          e.preventDefault(); e.stopPropagation(); return back();
+        }
+        if (k === " " || k === "k" || k === "MediaPlayPause") { if (tag === "SELECT") return; e.preventDefault(); e.stopPropagation(); return toggle(); }
+        if (k === "MediaPlay") { e.preventDefault(); return api.play(); }
+        if (k === "MediaPause" || k === "MediaStop") { e.preventDefault(); return api.pause(); }
+        if (k === "Enter" && !onCtl) { e.preventDefault(); e.stopPropagation(); return toggle(); }
+        if (onCtl && tag !== "BUTTON") return; /* 音量スライダー・セレクトは標準操作 */
+        if (k === "ArrowLeft" || k === "j" || k === "MediaRewind") { if (onCtl) return; e.preventDefault(); e.stopPropagation(); api.seek(T.t - 10); return flash("-10秒"); }
+        if (k === "ArrowRight" || k === "l" || k === "MediaFastForward") { if (onCtl) return; e.preventDefault(); e.stopPropagation(); api.seek(T.t + 10); return flash("+10秒"); }
+        if (k === "ArrowUp" && !onCtl) { e.preventDefault(); e.stopPropagation(); var v = Math.min(1, (T.v || 0) + 0.1); api.vol(v, false); return flash("音量 " + Math.round(v * 100)); }
+        if (k === "ArrowDown" && !onCtl) { e.preventDefault(); e.stopPropagation(); var v2 = Math.max(0, (T.v || 0) - 0.1); api.vol(v2, v2 === 0); return flash("音量 " + Math.round(v2 * 100)); }
+        if (k === "f") { e.preventDefault(); return fsToggle(); }
+        if (k === "m") { e.preventDefault(); return api.vol(T.v || 1, !T.muted); }
+      };
+      document.addEventListener("keydown", T.onKey, true);
+
+      /* ---- iframe (予備) のイベント ---- */
+      T.onMsg = function (e) {
+        if (!T || !T.frame || e.source !== T.frame.contentWindow) return;
+        var d; try { d = typeof e.data === "string" ? JSON.parse(e.data) : e.data; } catch (x) { return; }
+        if (!d) return;
+        var info = d.info; if (d.event === "onStateChange") info = { playerState: d.info };
+        if (!info || typeof info !== "object") return;
+        if (typeof info.currentTime === "number") T.t = info.currentTime;
+        if (typeof info.duration === "number" && info.duration) T.d = info.duration;
+        if (typeof info.playerState === "number") {
+          if (info.playerState === 1) { T.playing = true; T.ended = false; spin(false); msg(""); }
+          else if (info.playerState === 2) T.playing = false;
+          else if (info.playerState === 0) { T.playing = false; T.ended = true; }
+        }
+        paint();
+      };
+      addEventListener("message", T.onMsg);
+
+      function useIframe() {
+        if (!T || T !== me) return;
+        T.mode = "iframe"; T.video = null; T.audio = null;
+        var box = q(".tvp-media"); box.innerHTML = "";
+        var f = document.createElement("iframe");
+        f.setAttribute("allow", "autoplay; encrypted-media; fullscreen");
+        f.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+        f.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(id) + "?autoplay=1&enablejsapi=1&playsinline=1&controls=0&disablekb=1&fs=0&rel=0&iv_load_policy=3&modestbranding=1&origin=" + encodeURIComponent(location.origin);
+        f.onload = function () { f.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), "*"); spin(false); };
+        box.appendChild(f); T.frame = f; T.playing = true;
+        var sel = q(".ql"); sel.innerHTML = '<option>自動</option>'; sel.disabled = true;
+        paint(); wake();
+      }
+
+      function useStream(s, at) {
+        if (!T || T !== me) return;
+        T.mode = "video"; T.frame = null;
+        var box = q(".tvp-media"); box.innerHTML = "";
+        var v = document.createElement("video");
+        v.playsInline = true; v.autoplay = true; v.preload = "auto";
+        v.setAttribute("referrerpolicy", "no-referrer");
+        var a = null;
+        if (s.adaptive && s.audioUrl) { a = document.createElement("audio"); a.preload = "auto"; a.src = s.audioUrl; v.muted = true; }
+        v.src = s.url;
+        box.appendChild(v); T.video = v; T.audio = a;
+        var tgt = a || v; tgt.volume = T.v; tgt.muted = a ? T.muted : T.muted;
+        if (a) v.muted = true;
+        v.addEventListener("loadedmetadata", function () { if (v.duration && isFinite(v.duration)) T.d = v.duration; if (at) { v.currentTime = at; if (a) a.currentTime = at; } paint(); });
+        v.addEventListener("waiting", function () { spin(true); if (a) a.pause(); });
+        v.addEventListener("playing", function () { spin(false); msg(""); T.playing = true; T.ended = false; if (a) { if (Math.abs(a.currentTime - v.currentTime) > 0.3) a.currentTime = v.currentTime; a.play().catch(function () {}); } paint(); wake(); });
+        v.addEventListener("pause", function () { T.playing = false; if (a) a.pause(); paint(); wake(); });
+        v.addEventListener("timeupdate", function () { T.t = v.currentTime; if (a && !a.paused && Math.abs(a.currentTime - v.currentTime) > 0.35) a.currentTime = v.currentTime; paint(); });
+        v.addEventListener("progress", paint);
+        v.addEventListener("ended", function () { T.playing = false; T.ended = true; if (a) a.pause(); paint(); wake(); });
+        v.addEventListener("error", function () {
+          if (!T || T !== me || T.video !== v) return;
+          var i = T.streams.indexOf(s);
+          var nx = T.streams.slice(i + 1).find(function (x) { return !x.live; });
+          if (nx) { msg("別の画質で再試行しています…"); selectQ(nx, T.t); }
+          else { msg("YouTube プレーヤーで再生します"); useIframe(); }
+        });
+        var p = v.play(); if (p && p.catch) p.catch(function () { T.playing = false; paint(); });
+        T.cur = s;
+      }
+      function selectQ(s, at) { var sel = q(".ql"); sel.value = String(T.streams.indexOf(s)); useStream(s, at); }
+      q(".ql").onchange = function () { var s = T.streams[parseInt(this.value, 10)]; if (s) useStream(s, T.t); };
+
+      function fillNext(v) {
+        var list = (v && v.recommendedVideos || []).filter(function (x) { return idOf(x) && idOf(x) !== id; }).slice(0, 16);
+        var ls = q(".tvp-next .ls"); ls.innerHTML = "";
+        if (!list.length) { q(".tvp-next").style.visibility = "hidden"; return; }
+        list.forEach(function (x) {
+          var b = document.createElement("button"); b.type = "button"; b.className = "tvp-card";
+          b.innerHTML = '<img loading="lazy" referrerpolicy="no-referrer" src="' + img(x) + '" alt=""><div>' + H(x.title || "") + "</div>";
+          b.onclick = function () { go("/tv/" + idOf(x)); };
+          ls.appendChild(b);
+        });
+      }
+
+      spin(true); msg("番組を読み込んでいます…"); paint(); wake();
+      q(".pp").focus({ preventScroll: true });
+      var startAt = Math.max(0, parseInt(new URLSearchParams(currentSearch()).get("t") || "0", 10) || 0);
+      getVideo(id, sig()).then(function (v) {
+        if (!T || T !== me) return;
+        setInfo(v); fillNext(v);
+        var streams = (typeof pickStreams === "function" ? pickStreams(v) : []).filter(function (s) { return !s.live; });
+        T.streams = streams;
+        var sel = q(".ql"); sel.disabled = false;
+        sel.innerHTML = streams.map(function (s, i) { return '<option value="' + i + '">' + H(s.h ? s.h + "p" : s.label) + "</option>"; }).join("");
+        /* 既定は 1080p 以下で最も高い画質 */
+        var first = streams.find(function (s) { return s.h && s.h <= 1080; }) || streams[0];
+        if (first) selectQ(first, startAt); else { msg("YouTube プレーヤーで再生します"); useIframe(); }
+      }).catch(function (e) {
+        if (!T || T !== me || (e && e.name === "AbortError")) return;
+        useIframe();
+      });
+    }
+
+    var prevRender = renderPage;
+    renderPage = function () {
+      var p = currentPath();
+      var m = p.match(/^\/tv\/([\w-]{11})\/?$/);
+      if (p === "/tubetv" || p.indexOf("/tubetv/") === 0) { go(p.replace(/^\/tubetv/, "/tv") + currentSearch(), true); return; }
+      if (m) {
+        if (nav.abort) nav.abort.abort();
+        nav.abort = new AbortController();
+        if (T && T.id === m[1]) return;
+        return tvPlay(m[1]);
+      }
+      destroy();
+      return prevRender.apply(this, arguments);
+    };
+  })();
+
+  /* 初回表示がサービス・TV 再生ページなら描き直す */
+  if (/^\/(tubemusic|tv|tubetv)(\/|$)/.test(currentPath())) render();
+
 })();
