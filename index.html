@@ -3332,8 +3332,7 @@ function nkStartGlow() {
 /* サムネに数秒カーソルを合わせると、ミュートのプレビューを再生（マウス操作のみ） */
 var NK_CARD_SEL = ".card,.rel-item,.list-item";
 var nkPvTimer = 0, nkPvCard = null;
-/* プレビューは YouTube 公式の nocookie 埋め込み（ミュート・操作UIなし）。
-   IFrame API の infoDelivery で再生位置を受け取り、下部のバーに反映する */
+/* （旧: nocookie 埋め込みの再生位置を受け取る処理。プレビューはストリームに変えたため、現在は使わない） */
 var NK_PV_ORIGIN = "https://www.youtube-nocookie.com";
 var nkPvFrame = null;
 window.addEventListener("message", function (e) {
@@ -3355,6 +3354,32 @@ window.addEventListener("message", function (e) {
 var nkPvToken = 0;
 /* ホバーのプレビューは、低画質のストリームをミュートの <video> で再生する。
    取得できない場合はエラーを出さずサムネイルのまま（進捗バーだけ動く）。 */
+/* ホバーのプレビュー: 低画質のストリーム（nkdlp-api の映像URL）をミュートの <video> で再生する。
+   取得できない場合はエラーを出さずサムネイルのまま */
+var nkPvCache = new Map();
+function nkPickPreview(d) {
+    var nearest360 = function (arr) {
+        return arr.slice().sort(function (x, y) {
+            return Math.abs((parseInt(x.qualityLabel, 10) || 0) - 360) - Math.abs((parseInt(y.qualityLabel, 10) || 0) - 360);
+        })[0];
+    };
+    var muxed = (d.formatStreams || []).filter(function (f) { return f && f.url; });
+    if (muxed.length)
+        return (nearest360(muxed) || {}).url || "";
+    var vids = (d.adaptiveFormats || []).filter(function (f) { return f && f.url && /^video\//.test(f.type || ""); });
+    return vids.length ? ((nearest360(vids) || {}).url || "") : "";
+}
+function nkPvGet(id, signal) {
+    var c = nkPvCache.get(id);
+    if (c && Date.now() - c.at < 300000)
+        return Promise.resolve(nkPickPreview(c.d));
+    return nkdlpVideo(id, signal).then(function (d) {
+        nkPvCache.set(id, { d: d, at: Date.now() });
+        if (nkPvCache.size > 60)
+            nkPvCache.delete(nkPvCache.keys().next().value);
+        return nkPickPreview(d);
+    });
+}
 function nkPreviewStart(card) {
     var id = card.dataset.vid;
     var thumb = card.querySelector(".thumb");
@@ -3367,23 +3392,41 @@ function nkPreviewStart(card) {
     thumb.classList.add("nk-live");
     var token = ++nkPvToken;
     nkPvCard = card;
-    var fr = document.createElement("iframe");
-    fr.className = "nk-prev";
-    fr.allow = "autoplay; encrypted-media";
-    fr.setAttribute("tabindex", "-1");
-    fr.src = NK_PV_ORIGIN + "/embed/" + encodeURIComponent(id) + "?autoplay=1&mute=1&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&enablejsapi=1&origin=" + encodeURIComponent(location.origin);
-    fr.__bar = bar.firstChild;
-    nkPvFrame = fr;
-    fr.addEventListener("load", function () {
-        try { fr.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), NK_PV_ORIGIN); } catch (_) { }
-        /* 埋め込みの読み込み後に少し待ってからサムネと入れ替え（グレー表示を防ぐ） */
-        setTimeout(function () { if (token === nkPvToken) { fr.classList.add("on"); thumb.classList.add("nk-playing"); } }, 700);
-    });
-    thumb.insertBefore(fr, bar);
+    var ctl = new AbortController();
+    card.__pvAbort = ctl;
+    nkPvGet(id, ctl.signal).then(function (url) {
+        if (token !== nkPvToken || !url)
+            return;
+        var vid = document.createElement("video");
+        vid.className = "nk-prev";
+        vid.muted = true;
+        vid.defaultMuted = true;
+        vid.playsInline = true;
+        vid.loop = true;
+        vid.preload = "auto";
+        vid.setAttribute("tabindex", "-1");
+        vid.addEventListener("playing", function () {
+            if (token === nkPvToken) {
+                vid.classList.add("on");
+                thumb.classList.add("nk-playing");
+            }
+        });
+        vid.addEventListener("timeupdate", function () {
+            if (vid.duration > 0)
+                bar.firstChild.style.width = (vid.currentTime / vid.duration * 100) + "%";
+        });
+        thumb.insertBefore(vid, bar);
+        vid.src = url;
+        vid.play().catch(function () { });
+    }).catch(function () { /* 取得できない時はサムネイルのまま */ });
 }
 function nkPreviewStop(card) {
     if (!card)
         return;
+    if (card.__pvAbort) {
+        card.__pvAbort.abort();
+        card.__pvAbort = null;
+    }
     nkPvToken++;
     var thumb = card.querySelector(".thumb");
     if (thumb) {
@@ -3395,7 +3438,6 @@ function nkPreviewStop(card) {
         });
         thumb.classList.remove("nk-live", "nk-playing");
     }
-    if (nkPvFrame && !document.contains(nkPvFrame)) nkPvFrame = null;
     if (nkPvCard === card)
         nkPvCard = null;
 }
@@ -4251,12 +4293,12 @@ async function nkdlpVideo(id, signal) {
         return reason;
     };
     var last = "";
-    for (var attempt = 0; attempt < 2; attempt++) {
+    for (var attempt = 0; attempt < 3; attempt++) {
         if (signal && signal.aborted)
             break;
         var ctl = new AbortController();
         var timedOut = false;
-        var t = setTimeout(function () { timedOut = true; ctl.abort(); }, 15000);
+        var t = setTimeout(function () { timedOut = true; ctl.abort(); }, 45000);
         var onAbort = function () { ctl.abort(); };
         if (signal)
             signal.addEventListener("abort", onAbort, { once: true });
@@ -4284,6 +4326,7 @@ async function nkdlpVideo(id, signal) {
                 catch (_) { }
                 if (!body) {
                     last = fail("NKDLP の応答が JSON ではありません", txt.slice(0, 80));
+                    retryable = true;
                 }
                 else {
                     var d = nkdlpNormalize(body, id);
@@ -4292,6 +4335,7 @@ async function nkdlpVideo(id, signal) {
                         return d;
                     }
                     last = fail("NKDLP の応答に再生できる形式がありません", String(body.error || body.message || ""));
+                    retryable = true;
                 }
             }
         }
@@ -4299,10 +4343,10 @@ async function nkdlpVideo(id, signal) {
             if (signal && signal.aborted)
                 last = fail("読み込みを中断しました");
             else if (timedOut)
-                last = fail("NKDLP の応答がタイムアウトしました（15秒）");
+                last = fail("NKDLP の応答がタイムアウトしました（45秒）");
             else
                 last = fail("NKDLP に接続できません（通信エラー）", String(e && e.message || e));
-            retryable = !(signal && signal.aborted);
+            retryable = !timedOut && !(signal && signal.aborted);
         }
         finally {
             clearTimeout(t);
@@ -4311,8 +4355,8 @@ async function nkdlpVideo(id, signal) {
         }
         if (!retryable)
             break;
-        if (attempt === 0)
-            await new Promise(function (res) { setTimeout(res, 800); });
+        if (attempt < 2)
+            await new Promise(function (res) { setTimeout(res, 1000 * (attempt + 1)); });
     }
     throw new Error(last || "NKDLP failed");
 }
@@ -4474,7 +4518,7 @@ function getVideo(id, signal) {
             };
             all.forEach(function (pr) { pr.then(check); });
             Promise.all(all).then(fin);
-            setTimeout(fin, 15000);
+            setTimeout(fin, 60000);
             if (signal)
                 signal.addEventListener("abort", fin, { once: true });
         });
