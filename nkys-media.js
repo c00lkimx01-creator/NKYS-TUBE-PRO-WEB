@@ -221,7 +221,7 @@
     if (typeof info.currentTime === "number") P.t = info.currentTime;
     if (typeof info.duration === "number" && info.duration) P.d = info.duration;
     if (typeof info.playerState === "number") {
-      if (info.playerState === 0) { if (P.idx < P.queue.length - 1) return step(1); P.playing = false; }
+      if (info.playerState === 0) { return onSongEnd(); }
       else if (info.playerState === 1) P.playing = true;
       else if (info.playerState === 2) P.playing = false;
     }
@@ -595,6 +595,7 @@
               '<button type="button" class="rw" aria-label="10秒戻る">' + I.rw + '</button>' +
               '<button type="button" class="pp" aria-label="再生/一時停止">' + I.play + '</button>' +
               '<button type="button" class="ff" aria-label="10秒進む">' + I.ff + '</button>' +
+              '<button type="button" class="lpv" aria-label="ループ" aria-pressed="false">LOOP</button>' +
               '<span class="tm">0:00 / 0:00</span><span class="sp"></span>' +
               '<button type="button" class="mu" aria-label="ミュート">' + I.vol + '</button>' +
               '<input class="tvp-vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="音量">' +
@@ -673,6 +674,10 @@
       q(".pp").onclick = toggle;
       q(".rw").onclick = function () { api.seek(T.t - 10); flash("-10秒"); };
       q(".ff").onclick = function () { api.seek(T.t + 10); flash("+10秒"); };
+      T.loop = false; try { T.loop = localStorage.getItem("nktv-loop") === "1"; } catch (e) {}
+      var paintLoop = function () { var b = q(".lpv"); b.setAttribute("aria-pressed", String(T.loop)); b.style.background = T.loop ? "#1aa0dc" : ""; };
+      paintLoop();
+      q(".lpv").onclick = function () { T.loop = !T.loop; try { localStorage.setItem("nktv-loop", T.loop ? "1" : "0"); } catch (e) {} paintLoop(); flash(T.loop ? "ループ オン" : "ループ オフ"); };
       q(".mu").onclick = function () { api.vol(T.v || 1, !T.muted); };
       q(".tvp-vol").oninput = function () { var v = parseFloat(this.value); api.vol(v, v === 0); };
       q(".rt").onchange = function () { api.rate(parseFloat(this.value)); };
@@ -729,7 +734,7 @@
         if (typeof info.playerState === "number") {
           if (info.playerState === 1) { T.playing = true; T.ended = false; spin(false); msg(""); }
           else if (info.playerState === 2) T.playing = false;
-          else if (info.playerState === 0) { T.playing = false; T.ended = true; }
+          else if (info.playerState === 0) { if (T.loop) { ycmd("seekTo", [0, true]); ycmd("playVideo"); T.playing = true; } else { T.playing = false; T.ended = true; } }
         }
         paint();
       };
@@ -768,7 +773,7 @@
         v.addEventListener("pause", function () { T.playing = false; if (a) a.pause(); paint(); wake(); });
         v.addEventListener("timeupdate", function () { T.t = v.currentTime; if (a && !a.paused && Math.abs(a.currentTime - v.currentTime) > 0.35) a.currentTime = v.currentTime; paint(); });
         v.addEventListener("progress", paint);
-        v.addEventListener("ended", function () { T.playing = false; T.ended = true; if (a) a.pause(); paint(); wake(); });
+        v.addEventListener("ended", function () { if (T.loop) { api.seek(0); api.play(); return; } T.playing = false; T.ended = true; if (a) a.pause(); paint(); wake(); });
         v.addEventListener("error", function () {
           if (!T || T !== me || T.video !== v) return;
           var i = T.streams.indexOf(s);
@@ -831,6 +836,197 @@
 
   /* 初回表示がサービス・TV 再生ページなら描き直す */
 
+
+  /* ================= ループ / お気に入り / プレイリスト (Music) ================= */
+  var LIBK = "nkm-lib";
+  function libGet() {
+    try { var d = JSON.parse(localStorage.getItem(LIBK) || "{}"); return { fav: Array.isArray(d.fav) ? d.fav : [], pls: Array.isArray(d.pls) ? d.pls : [] }; }
+    catch (e) { return { fav: [], pls: [] }; }
+  }
+  function libSet(d) { try { localStorage.setItem(LIBK, JSON.stringify(d)); } catch (e) {} }
+  function songOf(s) { return { id: s.id, title: s.title || "", artist: s.artist || "", len: s.len || 0 }; }
+  function isFav(id) { return libGet().fav.some(function (s) { return s.id === id; }); }
+  function toggleFav(s) {
+    var d = libGet(), i = d.fav.findIndex(function (x) { return x.id === s.id; });
+    if (i >= 0) d.fav.splice(i, 1); else d.fav.unshift(songOf(s));
+    libSet(d); return i < 0;
+  }
+  function plCreate(name, first) {
+    var d = libGet(); var p = { id: "pl" + Date.now().toString(36), name: name, songs: first ? [songOf(first)] : [] };
+    d.pls.unshift(p); libSet(d); return p;
+  }
+  function plAdd(pid, s) {
+    var d = libGet(), p = d.pls.find(function (x) { return x.id === pid; }); if (!p) return false;
+    if (p.songs.some(function (x) { return x.id === s.id; })) return false;
+    p.songs.push(songOf(s)); libSet(d); return true;
+  }
+  function plRemoveSong(pid, id) { var d = libGet(), p = d.pls.find(function (x) { return x.id === pid; }); if (!p) return; p.songs = p.songs.filter(function (x) { return x.id !== id; }); libSet(d); }
+  function plDelete(pid) { var d = libGet(); d.pls = d.pls.filter(function (x) { return x.id !== pid; }); libSet(d); }
+  function plRename(pid, name) { var d = libGet(), p = d.pls.find(function (x) { return x.id === pid; }); if (p) { p.name = name; libSet(d); } }
+
+  /* ループ: off → all(全曲) → one(1曲) */
+  P.loop = (function () { try { var v = localStorage.getItem("nkm-loop"); return v === "all" || v === "one" ? v : "off"; } catch (e) { return "off"; } })();
+  function cycleLoop() { P.loop = P.loop === "off" ? "all" : P.loop === "all" ? "one" : "off"; try { localStorage.setItem("nkm-loop", P.loop); } catch (e) {} paint(); return P.loop; }
+  function onSongEnd() {
+    if (P.loop === "one") { cmd("seekTo", [0, true]); cmd("playVideo"); P.playing = true; return; }
+    if (P.idx < P.queue.length - 1) return step(1);
+    if (P.loop === "all" && P.queue.length) { P.idx = 0; return load(); }
+    P.playing = false;
+  }
+
+  var stL = document.createElement("style");
+  stL.textContent = [
+    ".ytm-chip.lib{background:#ffffff26;font-weight:700}",
+    ".ytm-chip.lib.on{background:#fff;color:#000}",
+    ".ytm-libhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:24px 0 12px}",
+    ".ytm-libhead h2{margin:0!important;flex:1;min-width:0}",
+    ".ytm-btn{background:#fff;color:#000;border:0;border-radius:999px;padding:9px 18px;font-weight:700;font-size:14px;cursor:pointer}",
+    ".ytm-btn.ghost{background:#ffffff1a;color:#fff}",
+    ".ytm-pls{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:20px}",
+    ".ytm-pl{cursor:pointer;min-width:0;background:none;border:0;color:#fff;text-align:left;padding:0}",
+    ".ytm-pl .art{aspect-ratio:1;border-radius:6px;overflow:hidden;background:#222;display:grid;grid-template-columns:1fr 1fr;margin-bottom:10px}",
+    ".ytm-pl .art img{width:100%;height:100%;object-fit:cover}",
+    ".ytm-pl .art.one{grid-template-columns:1fr}",
+    ".ytm-pl .art.none{display:grid;place-items:center;font-size:40px;color:#666}",
+    ".ytm-pl .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".ytm-pl .a{color:#aaa;font-size:13px;margin-top:3px}",
+    ".ytm-row .rm{background:none;border:0;color:#aaa;cursor:pointer;font-size:18px;padding:4px 8px;border-radius:50%}",
+    ".ytm-row .rm:hover{background:#ffffff1a;color:#fff}",
+    ".ytmn-ctl .sm{position:relative}",
+    ".ytmn-ctl .lp b{position:absolute;right:8px;top:8px;font-size:10px;font-weight:900;background:#ff4e45;color:#fff;border-radius:50%;width:14px;height:14px;display:grid;place-items:center}",
+    ".ytmn-acts{display:flex;gap:10px;justify-content:center;position:relative}",
+    ".ytmn-acts button{border-radius:999px!important;background:#ffffff1a!important;padding:0 16px;height:40px;display:inline-flex!important;align-items:center;gap:6px;font-size:14px;font-weight:700}",
+    ".ytmn-acts button:hover{background:#ffffff33!important}",
+    ".ytmn-acts svg{width:20px!important;height:20px!important}",
+    ".ytmn-acts .fv.on{color:#ff4e45}",
+    ".ytmn-menu{position:absolute;bottom:48px;left:50%;transform:translateX(-50%);background:#282828;border-radius:10px;padding:6px;min-width:240px;max-height:300px;overflow:auto;box-shadow:0 10px 30px #000a;z-index:5;display:none}",
+    ".ytmn-menu.on{display:block}",
+    ".ytmn-menu button{width:100%;height:auto!important;padding:10px 12px!important;border-radius:6px!important;background:none!important;justify-content:flex-start;display:flex!important;text-align:left}",
+    ".ytmn-menu button:hover{background:#ffffff1a!important}",
+    ".ytmn-toast{position:fixed;left:50%;bottom:32px;transform:translateX(-50%);background:#fff;color:#000;padding:10px 18px;border-radius:8px;font-weight:700;font-size:14px;z-index:10001;opacity:0;transition:opacity .2s;pointer-events:none}",
+    ".ytmn-toast.on{opacity:1}",
+    ".ytmp .lp{position:relative}.ytmp .lp.on{color:#ff4e45}.ytmp .lp b{position:absolute;right:4px;top:4px;font-size:9px;font-weight:900}"
+  ].join("\n");
+  document.head.appendChild(stL);
+
+  var LIC = {
+    loop: '<svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>',
+    heart: '<svg viewBox="0 0 24 24"><path d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z"/></svg>',
+    heartOn: '<svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>',
+    add: '<svg viewBox="0 0 24 24"><path d="M14 10H3v2h11v-2zm0-4H3v2h11V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM3 16h7v-2H3v2z"/></svg>'
+  };
+  var toastT = 0;
+  function toast(s) {
+    var t = document.querySelector(".ytmn-toast"); if (!t) { t = el("div", "ytmn-toast"); document.body.appendChild(t); }
+    t.textContent = s; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove("on"); }, 1600);
+  }
+  function loopLabel(l) { return l === "one" ? "1曲をリピート" : l === "all" ? "全曲をリピート" : "リピートオフ"; }
+
+  /* 下部プレーヤーバーにもループボタン */
+  (function () {
+    var b = ensurePlayer(); var ctl = b.querySelector(".cl").parentNode;
+    var lp = document.createElement("button"); lp.className = "lp"; lp.type = "button"; lp.setAttribute("aria-label", "リピート"); lp.innerHTML = LIC.loop;
+    lp.onclick = function () { toast(loopLabel(cycleLoop())); };
+    ctl.insertBefore(lp, ctl.firstChild);
+    var fv = document.createElement("button"); fv.className = "fvb"; fv.type = "button"; fv.setAttribute("aria-label", "お気に入り");
+    fv.onclick = function () { var s = P.queue[P.idx]; if (!s) return; toast(toggleFav(s) ? "お気に入りに追加しました" : "お気に入りから削除しました"); paint(); };
+    ctl.insertBefore(fv, ctl.firstChild);
+    var bp = paint;
+    paint = function () {
+      bp();
+      lp.classList.toggle("on", P.loop !== "off"); lp.innerHTML = LIC.loop + (P.loop === "one" ? "<b>1</b>" : ""); lp.title = loopLabel(P.loop);
+      var s = P.queue[P.idx]; var f = s && isFav(s.id);
+      fv.innerHTML = f ? LIC.heartOn : LIC.heart; fv.style.color = f ? "#ff4e45" : "";
+    };
+  })();
+
+  /* ライブラリのページ */
+  function libRow(s, list, i, onRemove) {
+    var r = rowEl(s, list, i);
+    if (onRemove) {
+      var d = r.querySelector(".d");
+      var rm = document.createElement("button"); rm.type = "button"; rm.className = "rm"; rm.setAttribute("aria-label", "削除"); rm.textContent = "✕";
+      rm.onclick = function (e) { e.stopPropagation(); onRemove(s); };
+      d.appendChild(rm);
+    }
+    return r;
+  }
+  function musicFav() {
+    var body = ytmShell("__fav");
+    var l = libGet().fav;
+    body.innerHTML = '<div class="ytm-libhead"><h2>お気に入り</h2></div>';
+    if (l.length) {
+      var pa = el("button", "ytm-btn", "すべて再生"); pa.type = "button";
+      pa.onclick = function () { playQueue(l, 0); go("/music/" + l[0].id); };
+      body.querySelector(".ytm-libhead").appendChild(pa);
+    }
+    var list = el("div", "ytm-list"); body.appendChild(list);
+    if (!l.length) { list.innerHTML = '<div class="ytm-empty">お気に入りの曲はまだありません。再生画面の ♡ で追加できます。</div>'; return; }
+    l.forEach(function (s, i) { list.appendChild(libRow(s, l, i, function (x) { toggleFav(x); musicFav(); })); });
+  }
+  function musicPlaylists() {
+    var body = ytmShell("__pl");
+    var d = libGet();
+    body.innerHTML = '<div class="ytm-libhead"><h2>プレイリスト</h2></div>';
+    var nb = el("button", "ytm-btn", "＋ 新しいプレイリスト"); nb.type = "button";
+    nb.onclick = function () { var n = (prompt("プレイリスト名") || "").trim(); if (n) { plCreate(n); musicPlaylists(); } };
+    body.querySelector(".ytm-libhead").appendChild(nb);
+    var g = el("div", "ytm-pls"); body.appendChild(g);
+    if (!d.pls.length) { g.outerHTML = '<div class="ytm-empty">プレイリストはまだありません</div>'; return; }
+    d.pls.forEach(function (p) {
+      var c = document.createElement("button"); c.type = "button"; c.className = "ytm-pl";
+      var ims = p.songs.slice(0, 4);
+      var cls = ims.length === 0 ? "art none" : ims.length < 4 ? "art one" : "art";
+      var art = ims.length === 0 ? "♪" : (ims.length < 4 ? ims.slice(0, 1) : ims).map(function (s) { return '<img loading="lazy" referrerpolicy="no-referrer" src="' + img(s) + '" alt="">'; }).join("");
+      c.innerHTML = '<div class="' + cls + '">' + art + '</div><div class="t">' + H(p.name) + '</div><div class="a">' + p.songs.length + ' 曲</div>';
+      c.onclick = function () { go("/music?pl=" + p.id); };
+      g.appendChild(c);
+    });
+  }
+  function musicPlaylist(pid) {
+    var body = ytmShell("__pl");
+    var p = libGet().pls.find(function (x) { return x.id === pid; });
+    if (!p) { body.innerHTML = '<div class="ytm-empty">プレイリストが見つかりません</div>'; return; }
+    body.innerHTML = '<div class="ytm-libhead"><h2>' + H(p.name) + '</h2></div>';
+    var hd = body.querySelector(".ytm-libhead");
+    if (p.songs.length) {
+      var pa = el("button", "ytm-btn", "すべて再生"); pa.type = "button";
+      pa.onclick = function () { playQueue(p.songs, 0); go("/music/" + p.songs[0].id); };
+      var sh = el("button", "ytm-btn ghost", "シャッフル"); sh.type = "button";
+      sh.onclick = function () { var l = p.songs.slice(); for (var i = l.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = l[i]; l[i] = l[j]; l[j] = t; } playQueue(l, 0); go("/music/" + l[0].id); };
+      hd.appendChild(pa); hd.appendChild(sh);
+    }
+    var rn = el("button", "ytm-btn ghost", "名前を変更"); rn.type = "button";
+    rn.onclick = function () { var n = (prompt("新しい名前", p.name) || "").trim(); if (n) { plRename(pid, n); musicPlaylist(pid); } };
+    var dl = el("button", "ytm-btn ghost", "削除"); dl.type = "button";
+    dl.onclick = function () { if (confirm("「" + p.name + "」を削除しますか？")) { plDelete(pid); go("/music?tab=pl", true); } };
+    hd.appendChild(rn); hd.appendChild(dl);
+    var list = el("div", "ytm-list"); body.appendChild(list);
+    if (!p.songs.length) { list.innerHTML = '<div class="ytm-empty">曲がありません。再生画面の「プレイリストに追加」から追加できます。</div>'; return; }
+    p.songs.forEach(function (s, i) { list.appendChild(libRow(s, p.songs, i, function (x) { plRemoveSong(pid, x.id); musicPlaylist(pid); })); });
+  }
+  /* ライブラリのチップを Music 上部に */
+  var baseShell = ytmShell;
+  ytmShell = function (active) {
+    var body = baseShell(MOODS.indexOf(active) >= 0 ? active : null);
+    var chips = body.parentNode.querySelector(".ytm-chips");
+    [["__fav", "♥ お気に入り", "/music?tab=fav"], ["__pl", "プレイリスト", "/music?tab=pl"]].reverse().forEach(function (c) {
+      var b = el("button", "ytm-chip lib" + (active === c[0] ? " on" : ""), c[1]); b.type = "button";
+      b.onclick = function () { go(c[2]); };
+      chips.insertBefore(b, chips.firstChild);
+    });
+    return body;
+  };
+  var baseSvc = pageService;
+  pageService = function (key) {
+    if (key === "music") {
+      var q = sp();
+      if (q.get("tab") === "fav") { document.title = "お気に入り - NKYSTubeMusic"; return musicFav(); }
+      if (q.get("pl")) return musicPlaylist(q.get("pl"));
+      if (q.get("tab") === "pl") { document.title = "プレイリスト - NKYSTubeMusic"; return musicPlaylists(); }
+    }
+    return baseSvc(key);
+  };
 
   /* ================= Music 再生 UI (/music/{videoId}) ================= */
   (function () {
@@ -916,9 +1112,9 @@
       if (!R.dragging) { var sk = q(".ytmn-seek input"); sk.max = String(Math.max(1, Math.round(P.d))); sk.value = String(Math.round(P.t)); }
       q(".tm .c").textContent = fmtDur(P.t); q(".tm .e").textContent = fmtDur(P.d);
       q(".nv.pv").disabled = P.idx <= 0; q(".nv.nx").disabled = P.idx >= P.queue.length - 1;
-      q(".rp").classList.toggle("on", R.repeat);
+      var lpb = q(".rp"); lpb.classList.toggle("on", P.loop !== "off"); lpb.innerHTML = MI.repeat + (P.loop === "one" ? "<b>1</b>" : ""); lpb.setAttribute("aria-label", loopLabel(P.loop)); lpb.title = loopLabel(P.loop);
+      var fvb = q(".fv"); var fon = s && isFav(s.id); fvb.classList.toggle("on", !!fon); fvb.innerHTML = (fon ? LIC.heartOn : LIC.heart) + (fon ? "お気に入り済み" : "お気に入り");
       /* リピート: 終了直前で頭に戻す */
-      if (R.repeat && P.d && P.t >= P.d - 0.6 && P.playing) cmd("seekTo", [0, true]);
     }
     function renderQueue() {
       var r = R.root; if (!r) return;
@@ -945,8 +1141,8 @@
         '<button type="button" class="nv pv" aria-label="前の曲">' + ICON.prev + '</button>' +
         '<button type="button" class="pp" aria-label="再生">' + ICON.play + '</button>' +
         '<button type="button" class="nv nx" aria-label="次の曲">' + ICON.next + '</button>' +
-        '<button type="button" class="sm rp" aria-label="リピート">' + MI.repeat + '</button></div>' +
-        '<div class="ytmn-vol">' + MI.vol + '<input type="range" min="0" max="100" value="' + R.vol + '" aria-label="音量"></div></div>' +
+        '<button type="button" class="sm rp lp" aria-label="リピート">' + MI.repeat + '</button></div>' +
+        '<div class="ytmn-acts"><button type="button" class="fv">お気に入り</button><button type="button" class="ad">' + LIC.add + 'プレイリストに追加</button><div class="ytmn-menu" role="menu"></div></div><div class="ytmn-vol">' + MI.vol + '<input type="range" min="0" max="100" value="' + R.vol + '" aria-label="音量"></div></div>' +
         '<div class="ytmn-side"><h2>次のトラック</h2><div class="ytmn-list"><div class="ytmn-ghost">読み込み中…</div></div></div></div>';
       view().replaceChildren(w);
       R.root = w; R.id = id;
@@ -956,7 +1152,24 @@
       q(".pp").onclick = function () { cmd(P.playing ? "pauseVideo" : "playVideo"); P.playing = !P.playing; paint(); };
       q(".pv").onclick = function () { if (P.t > 3) cmd("seekTo", [0, true]); else step(-1); };
       q(".nx").onclick = function () { step(1); };
-      q(".rp").onclick = function () { R.repeat = !R.repeat; mpaint(); };
+      q(".rp").onclick = function () { toast(loopLabel(cycleLoop())); };
+      q(".fv").onclick = function () { var s = cur(); if (!s) return; toast(toggleFav(s) ? "お気に入りに追加しました" : "お気に入りから削除しました"); paint(); };
+      var menu = q(".ytmn-menu");
+      q(".ad").onclick = function (e) {
+        e.stopPropagation(); var s = cur(); if (!s) return;
+        if (menu.classList.contains("on")) { menu.classList.remove("on"); return; }
+        menu.innerHTML = "";
+        var nb = document.createElement("button"); nb.type = "button"; nb.textContent = "＋ 新しいプレイリスト";
+        nb.onclick = function () { var n = (prompt("プレイリスト名") || "").trim(); menu.classList.remove("on"); if (n) { plCreate(n, s); toast("「" + n + "」に追加しました"); } };
+        menu.appendChild(nb);
+        libGet().pls.forEach(function (p) {
+          var b = document.createElement("button"); b.type = "button"; b.textContent = p.name + "（" + p.songs.length + "曲）";
+          b.onclick = function () { menu.classList.remove("on"); toast(plAdd(p.id, s) ? "「" + p.name + "」に追加しました" : "すでに追加されています"); };
+          menu.appendChild(b);
+        });
+        menu.classList.add("on");
+      };
+      w.addEventListener("click", function (e) { if (!e.target.closest(".ytmn-acts")) menu.classList.remove("on"); });
       q(".sh").onclick = function () {
         var c = cur(); if (!c) return;
         var rest = P.queue.filter(function (_, i) { return i !== P.idx; });
