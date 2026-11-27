@@ -651,7 +651,7 @@
       T.v = 1; T.muted = false;
       function ycmd(func, args) { if (T && T.frame && T.frame.contentWindow) T.frame.contentWindow.postMessage(JSON.stringify({ event: "command", func: func, args: args || [] }), "*"); }
       function paint() {
-        if (!T) return;
+        if (!T || T !== me) return;
         r.classList.toggle("paused", !T.playing && !T.ended);
         r.classList.toggle("ended", !!T.ended);
         q(".pp").innerHTML = T.playing ? I.pause : I.play;
@@ -767,13 +767,13 @@
         box.appendChild(v); T.video = v; T.audio = a;
         var tgt = a || v; tgt.volume = T.v; tgt.muted = a ? T.muted : T.muted;
         if (a) v.muted = true;
-        v.addEventListener("loadedmetadata", function () { if (v.duration && isFinite(v.duration)) T.d = v.duration; if (at) { v.currentTime = at; if (a) a.currentTime = at; } paint(); });
-        v.addEventListener("waiting", function () { spin(true); if (a) a.pause(); });
-        v.addEventListener("playing", function () { spin(false); msg(""); T.playing = true; T.ended = false; if (a) { if (Math.abs(a.currentTime - v.currentTime) > 0.3) a.currentTime = v.currentTime; a.play().catch(function () {}); } paint(); wake(); });
-        v.addEventListener("pause", function () { T.playing = false; if (a) a.pause(); paint(); wake(); });
-        v.addEventListener("timeupdate", function () { T.t = v.currentTime; if (a && !a.paused && Math.abs(a.currentTime - v.currentTime) > 0.35) a.currentTime = v.currentTime; paint(); });
-        v.addEventListener("progress", paint);
-        v.addEventListener("ended", function () { if (T.loop) { api.seek(0); api.play(); return; } T.playing = false; T.ended = true; if (a) a.pause(); paint(); wake(); });
+        v.addEventListener("loadedmetadata", function () { if (!T || T !== me || T.video !== v) return; if (v.duration && isFinite(v.duration)) T.d = v.duration; if (at) { v.currentTime = at; if (a) a.currentTime = at; } paint(); });
+        v.addEventListener("waiting", function () { if (!T || T !== me || T.video !== v) return; spin(true); if (a) a.pause(); });
+        v.addEventListener("playing", function () { if (!T || T !== me || T.video !== v) return; spin(false); msg(""); T.playing = true; T.ended = false; if (a) { if (Math.abs(a.currentTime - v.currentTime) > 0.3) a.currentTime = v.currentTime; a.play().catch(function () {}); } paint(); wake(); });
+        v.addEventListener("pause", function () { if (!T || T !== me || T.video !== v) return; T.playing = false; if (a) a.pause(); paint(); wake(); });
+        v.addEventListener("timeupdate", function () { if (!T || T !== me || T.video !== v) return; T.t = v.currentTime; if (a && !a.paused && Math.abs(a.currentTime - v.currentTime) > 0.35) a.currentTime = v.currentTime; paint(); });
+        v.addEventListener("progress", function () { if (T === me) paint(); });
+        v.addEventListener("ended", function () { if (!T || T !== me || T.video !== v) return; if (T.loop) { api.seek(0); api.play(); return; } T.playing = false; T.ended = true; if (a) a.pause(); paint(); wake(); });
         v.addEventListener("error", function () {
           if (!T || T !== me || T.video !== v) return;
           var i = T.streams.indexOf(s);
@@ -781,7 +781,7 @@
           if (nx) { msg("別の画質で再試行しています…"); selectQ(nx, T.t); }
           else { msg("YouTube プレーヤーで再生します"); useIframe(); }
         });
-        var p = v.play(); if (p && p.catch) p.catch(function () { T.playing = false; paint(); });
+        var p = v.play(); if (p && p.catch) p.catch(function () { if (!T || T !== me) return; T.playing = false; paint(); });
         T.cur = s;
       }
       function selectQ(s, at) { var sel = q(".ql"); sel.value = String(T.streams.indexOf(s)); useStream(s, at); }
