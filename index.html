@@ -4,6 +4,7 @@
 <meta name="referrer" content="no-referrer">
 <script>(function(){try{var p=sessionStorage.getItem("spa-redirect");if(p){sessionStorage.removeItem("spa-redirect");history.replaceState(null,"",p);}}catch(e){}})();</script>
 <meta charset="utf-8" />
+<script src="./nkys-cors.js"></script>
 <script>
 /* 古いブラウザ(IE11 / 旧Edge / 旧Chrome)向け: 不足機能があるときだけ補助スクリプトを同期読み込み  */
 (function(){
@@ -2311,7 +2312,7 @@ body.is-watch #cpFab{top:72px !important;bottom:auto !important}
 
 <dialog id="dlgSettings">
   <h3>設定</h3>
-  <div class="row"><label><input type="checkbox" id="setProxy" /> サーバープロキシ経由（安定性優先）</label></div>
+  <div class="row"><label><input type="checkbox" id="setProxy" /> CORS 中継を使用（直接接続できない場合のみ）</label></div>
   <div class="row"><label><input type="checkbox" id="setAdaptive" /> 高画質 (mp4 映像 + 音声トラックを同時再生) を優先</label></div>
   <div class="row"><label><input type="checkbox" id="setAutoplay" checked /> 自動再生</label></div>
   <div class="row">既定の画質
@@ -3679,7 +3680,7 @@ var LS = {
     catch (_) { } },
 };
 var S = {
-    settings: Object.assign({ proxy: true, adaptive: false, autoplay: true, quality: "auto", theme: "dark", playerMode: "stream", saveSearches: true, saveHistory: true, region: "JP", loop: false, mute: false, streamApi: "nkdlp", infoApi: "invidious" }, LS.get("settings", {})),
+    settings: Object.assign({ proxy: false, adaptive: false, autoplay: true, quality: "auto", theme: "dark", playerMode: "stream", saveSearches: true, saveHistory: true, region: "JP", loop: false, mute: false, streamApi: "nkdlp", infoApi: "invidious" }, LS.get("settings", {})),
     subs: LS.get("subs", []),
     history: LS.get("history", []),
     searches: LS.get("searches", []),
@@ -4073,8 +4074,15 @@ function jaParams(u) {
     }
     return u;
 }
-/* 自前 Worker は CORS 対応済みなのでプロキシを経由しない（直接叩いた方が速く確実） */
-var px = function (u) { return ((USE_PROXY && String(u).indexOf(WORKER_API) !== 0) ? "/api/public/px?u=" + encodeURIComponent(jaParams(u)) : jaParams(u)); };
+/* 動画・音声は直接再生。JSON API のみ CORS 中継の対象にする。 */
+var px = function (u) { return jaParams(u); };
+function apiFetch(u, options, timeout) {
+    return NKYSCors.fetch(u, options, {
+        enabled: !!USE_PROXY,
+        relay: S.settings.corsRelay === undefined ? NKYSCors.defaultRelay : S.settings.corsRelay,
+        timeout: timeout || 7000
+    });
+}
 var hRec = function (b) { return (S.health[b] || (S.health[b] = { fail: 0, ms: 1200 })); };
 var hTimer;
 function saveHealth() { clearTimeout(hTimer); hTimer = setTimeout(function () { return LS.set("health", S.health); }, 800); }
@@ -4095,7 +4103,7 @@ function fetchJson(base, path, signal, timeout) {
                 signal.addEventListener("abort", onA, { once: true });
         }
         var t = setTimeout(function () { return c.abort(); }, ms);
-        return fetch(u, { headers: { Accept: "application/json" }, signal: c.signal })
+        return apiFetch(u, { headers: { Accept: "application/json" }, signal: c.signal }, ms)
             .then(function (r) { if (!r.ok)
             throw new Error(r.status + " " + base); return r.json(); })
             .then(function (j) {
@@ -4109,15 +4117,7 @@ function fetchJson(base, path, signal, timeout) {
                 signal.removeEventListener("abort", onA);
         });
     };
-    /* プロキシが使えない環境（静的ホスティング等）では自動的に直接取得へフォールバック */
-    var proxyLimit = Math.min(2500, Math.max(800, limit * .45));
-    var first = USE_PROXY
-        ? get(px(raw), proxyLimit).catch(function (e) {
-            if (signal && signal.aborted)
-                throw e;
-            return get(jaParams(raw), Math.max(500, limit - (performance.now() - t0)));
-        })
-        : get(jaParams(raw), limit);
+    var first = get(jaParams(raw), limit);
     return first
         .then(function (j) { ok(base, performance.now() - t0); return j; })
         .catch(function (e) { if (!isAbort(e))
@@ -4304,7 +4304,7 @@ async function nkdlpVideo(id, signal) {
             signal.addEventListener("abort", onAbort, { once: true });
         var retryable = false;
         try {
-            var r = await fetch(NKDLP_API + "/api/v1/stream/" + encodeURIComponent(id), { signal: ctl.signal, headers: { accept: "application/json" } });
+            var r = await apiFetch(NKDLP_API + "/api/v1/stream/" + encodeURIComponent(id), { signal: ctl.signal, headers: { accept: "application/json" } }, 45000);
             var txt = await r.text();
             if (!r.ok) {
                 var em = "";
@@ -5225,11 +5225,11 @@ function qsGet(path, signal, ms) {
                     _a.label = 1;
                 case 1:
                     _a.trys.push([1, , 4, 5]);
-                    return [4 /*yield*/, fetch(QS_API + path, { signal: ac.signal, headers: { accept: "application/json" } })];
+                    return [4 /*yield*/, apiFetch(QS_API + path, { signal: ac.signal, headers: { accept: "application/json" } }, ms || 9000)];
                 case 2:
                     r = _a.sent();
                     if (!r.ok)
-                        throw new Error("HTTP " + r.status);
+                        throw new Error(QS_API + " HTTP " + r.status);
                     return [4 /*yield*/, r.json()];
                 case 3:
                     d = _a.sent();
@@ -5631,11 +5631,11 @@ function nivGet(path, signal, ms) {
                     _a.label = 1;
                 case 1:
                     _a.trys.push([1, , 4, 5]);
-                    return [4 /*yield*/, fetch(NIV + path, { signal: ac.signal, headers: { accept: "application/json" } })];
+                    return [4 /*yield*/, apiFetch(NIV + path, { signal: ac.signal, headers: { accept: "application/json" } }, ms || 8000)];
                 case 2:
                     r = _a.sent();
                     if (!r.ok)
-                        throw new Error("HTTP " + r.status);
+                        throw new Error(NIV + " HTTP " + r.status);
                     return [4 /*yield*/, r.json()];
                 case 3:
                     d = _a.sent();
@@ -10896,7 +10896,8 @@ function pageSettings() {
             row("API キー", "インスタンスで認証を有効にしている場合のみ入力します。この端末のブラウザにだけ保存されます", '<input type="password" id="stCobaltKey" class="setInput" autocomplete="off" value="' + esc(st.cobaltKey || "") + '" />') +
             "</div>" +
             '<div class="setCard"><h2>接続</h2>' +
-            row("サーバープロキシ経由", "接続が不安定なときに有効にすると安定します", sw("stProxy", !!st.proxy)) +
+            row("CORS 中継を使用", "直接接続できない場合のみ中継します。API 側のアクセス拒否（403・429）は回避しません", sw("stProxy", !!st.proxy)) +
+            row("CORS 中継先 URL", "第三者サービスに取得先 URL と応答が渡ります。停止・利用制限の可能性があります。{url} は取得先に置き換わります", '<input type="url" id="stCorsRelay" aria-label="CORS 中継先 URL" class="setInput" value="' + esc(st.corsRelay === undefined ? NKYSCors.defaultRelay : st.corsRelay) + '" />') +
             row("地域", "急上昇や検索結果の地域を指定します", '<select id="stRegion">' + [["JP", "日本"], ["US", "アメリカ"], ["GB", "イギリス"], ["KR", "韓国"], ["TW", "台湾"], ["DE", "ドイツ"], ["FR", "フランス"]]
                 .map(function (_a) {
                 var _b = __read(_a, 2), v = _b[0], n = _b[1];
@@ -10933,6 +10934,12 @@ function pageSettings() {
     } });
     on("stCcTranslate", function (e) { st.ccTranslate = e.target.value; saveSettings(); nkCcCache.clear(); toast(e.target.value ? "字幕の自動翻訳: " + NK_CC_LANGS[e.target.value] : "字幕の自動翻訳: オフ"); });
     on("stProxy", function (e) { st.proxy = USE_PROXY = e.target.checked; saveSettings(); cache.clear(); $("#setProxy").checked = e.target.checked; });
+    on("stCorsRelay", function (e) {
+        var value = e.target.value.trim();
+        try { if (value) NKYSCors.relayUrl(value, "https://example.com/api"); }
+        catch (error) { toast(error.message); e.target.value = st.corsRelay === undefined ? NKYSCors.defaultRelay : st.corsRelay; return; }
+        st.corsRelay = value; saveSettings(); cache.clear(); toast(value ? "CORS 中継先を変更しました" : "CORS 中継先を解除しました");
+    });
     on("stRegion", function (e) { st.region = e.target.value; saveSettings(); cache.clear(); toast("地域を変更しました"); });
     on("stSaveSearches", function (e) { st.saveSearches = e.target.checked; saveSettings(); });
     on("stSaveHistory", function (e) { st.saveHistory = e.target.checked; saveSettings(); });
